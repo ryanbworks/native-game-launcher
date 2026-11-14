@@ -315,6 +315,10 @@ std::wstring MinecraftLaunchCommandBuilder::buildVanilla(
         L"-Dlog4j.configurationFile=" + (assets / L"log_configs" / L"client-1.7.xml").wstring(),
         L"-Dminecraft.launcher.brand=EternalLauncher",
         L"-Dminecraft.launcher.version=" + std::wstring(LauncherConfig::LauncherVersion),
+        // Java 8 sends a bare "Java/1.8.0_x" User-Agent, which Cloudflare rejects (error 1010),
+        // so authlib-injector could not reach the Conta Eternal and the game closed at once.
+        // With this property the agent becomes "EternalLauncher/<version> Java/1.8.0_x".
+        L"-Dhttp.agent=EternalLauncher/" + std::wstring(LauncherConfig::LauncherVersion),
         L"-cp",
         buildClasspath(gamePath),
         optiFine ? L"net.minecraft.launchwrapper.Launch" : L"net.minecraft.client.main.Main",

@@ -6,6 +6,13 @@ and versions use [SemVer](https://semver.org/) plus a codename.
 
 ## [Unreleased]
 
+## [3.2.1] — Zenith · 2026-11-14
+
+### Fixed
+- **1.8.9 closed right after Jogar with a Conta Eternal.** Java 8 names itself only
+  `Java/1.8.0_x`, which Cloudflare refuses, so authlib-injector could not reach the account
+  server and the game stopped. The game now sends `EternalLauncher/<version>` with it.
+
 ## [3.2.0] — Zenith · 2026-11-14
 
 ### Added

@@ -2,6 +2,13 @@
   "schemaVersion": 1,
   "items": [
     {
+      "category": "CORREÇÃO",
+      "title": "Eternal 3.2.1: a 1.8.9 voltou a abrir",
+      "date": "2026-11-14",
+      "body": "Com a Conta Eternal, a 1.8.9 com OptiFine fechava logo depois do Jogar e voltava para o launcher. Agora ela abre normalmente.",
+      "url": "https://github.com/ryanbworks/native-game-launcher/releases/tag/v3.2.1"
+    },
+    {
       "category": "ATUALIZAÇÃO",
       "title": "Eternal 3.2: conquistas e perfis de desempenho",
       "date": "2026-11-14",

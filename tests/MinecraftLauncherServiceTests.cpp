@@ -204,6 +204,12 @@ int main(int argumentCount, char* arguments[])
         std::wcerr << L"The 1.8.9 command is not the plain Java 8 profile.\n";
         return 18;
     }
+    // Cloudflare rejects Java 8's bare "Java/1.8.0_x" agent, which stopped the Conta Eternal.
+    if (!has(L"-Dhttp.agent=EternalLauncher/"))
+    {
+        std::wcerr << L"The 1.8.9 command does not name its HTTP agent.\n";
+        return 19;
+    }
 
     return 0;
 }
