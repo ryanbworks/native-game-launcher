@@ -8,6 +8,8 @@
 #include "services/ModpackChangelog.h"
 #include "services/ModInventory.h"
 #include "services/OptiFine.h"
+#include "services/Achievements.h"
+#include "services/PerformanceProfiles.h"
 #include "services/HttpDownloadClient.h"
 #include "config/LauncherConfig.h"
 #include "services/NewsFeed.h"
@@ -153,8 +155,48 @@ namespace {
         Gdiplus::GdiplusShutdown(token);
     }
 
-    void gallery(const std::filesystem::path& root) {
-        const auto list=GalleryApi::parseList(R"({"photos":[
+    void achievementsAndProfiles(const std::filesystem::path& root) {
+        const auto stats=Achievements::parse(R"({"daysPlayed":18,"currentStreak":4,"bestStreak":9,"monthsPlayed":2,"playedThisMonth":true,"nightOwl":false,"rank":3,"month":"2026-11"})",
+                                             R"({"photos":4,"skins":1})");
+        check(stats.known && stats.daysPlayed==18 && stats.bestStreak==9 && stats.rank==3 && stats.photosShared==4 && stats.skinsShared==1,
+              "achievement stats come from both servers");
+        check(!Achievements::parse("oops","{}").known && Achievements::parse("{}","oops").known,"the gallery is optional, the play-time server is not");
+        const auto list=Achievements::evaluate(stats,{});
+        const auto find=[&](std::string_view id) {return std::find_if(list.begin(),list.end(),[&](const Achievement& a) {return a.id==id;});};
+        check(list.size()==12 && find("sequencia-7")->unlocked && !find("sequencia-30")->unlocked && find("sequencia-30")->progress==9,
+              "streak achievements unlock at their target and show progress below it");
+        check(find("mes-2026-11")!=list.end() && find("mes-2026-11")->unlocked && find("mes-2026-11")->description==L"Jogue pelo menos um dia em novembro",
+              "the monthly achievement carries its month");
+        check(find("podio")->unlocked && find("primeira-captura")->unlocked && !find("fotografo")->unlocked && find("estilista")->unlocked,
+              "podium and sharing achievements");
+        auto later=stats;later.rank=7;
+        check(Achievements::evaluate(later,{"podio"}).back().unlocked,"an achievement already won stays won");
+
+        AchievementStore store;store.load(root/L"achievements");
+        check(!store.knows(L"Steve"),"a new account is unknown");
+        store.add(L"Steve","podio");store.add(L"steve","visto");
+        check(store.save(),"achievements save");
+        AchievementStore again;again.load(root/L"achievements");
+        check(again.knows(L"STEVE") && again.earned(L"Steve").count("podio") && again.earned(L"Steve").size()==2,"won achievements are remembered per account");
+
+        using PerformanceProfiles::Profile;
+        check(PerformanceProfiles::memoryFor(Profile::Balanced,16384).maximumMegabytes==6144 &&
+              PerformanceProfiles::memoryFor(Profile::Maximum,8192).maximumMegabytes==4608 &&
+              PerformanceProfiles::memoryFor(Profile::Light,2048).maximumMegabytes==2048,"profile memory never takes more than the computer can spare");
+        const auto merged=PerformanceProfiles::mergeOptions("version:3465\nrenderDistance:12\nfov:0.5\nkey_key.jump:key.keyboard.space\n",
+                                                           PerformanceProfiles::videoOptions(Profile::Light,true),true);
+        check(merged.find("renderDistance:6\n")!=std::string::npos && merged.find("fov:0.5\n")!=std::string::npos &&
+              merged.find("key_key.jump:key.keyboard.space\n")!=std::string::npos && merged.rfind("version:3465\n",0)==0 &&
+              merged.find("renderClouds:\"false\"\n")!=std::string::npos,"profiles change only the video keys and keep the rest");
+        const auto fresh=PerformanceProfiles::mergeOptions("",PerformanceProfiles::videoOptions(Profile::Maximum,true),true);
+        check(fresh.rfind("version:3465\n",0)==0 && fresh.find("renderDistance:16\n")!=std::string::npos,"a new 1.20.1 options file gets its data version");
+        const auto classic=PerformanceProfiles::mergeOptions("",PerformanceProfiles::videoOptions(Profile::Balanced,false),false);
+        check(classic.find("version:")==std::string::npos && classic.find("fancyGraphics:true\n")!=std::string::npos,"1.8.9 uses its own option names");
+        check(PerformanceProfiles::applyVideoOptions(root/L"profile-game",Profile::Light,true) &&
+              PerformanceProfiles::save(root,Profile::Light) && PerformanceProfiles::load(root)==Profile::Light,"profiles are applied and remembered");
+    }
+
+    void gallery(const std::filesystem::path& root) {        const auto list=GalleryApi::parseList(R"({"photos":[
             {"id":"0123456789abcdef","name":"Steve","created":1800000000,"width":1920,"height":1080},
             {"id":"../../etc/passwd","name":"Steve"},
             {"id":"0123456789abcdee","name":"<script>"},
@@ -593,6 +635,7 @@ int main()
     modpackChangelog(root);
     screenshots(root);
     gallery(root);
+    achievementsAndProfiles(root);
     eternalAccount(root);
     eternalOnboarding();
     skinRenderer();

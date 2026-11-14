@@ -44,6 +44,14 @@ namespace Layout
     inline Rect stat(int index) { return {940 + static_cast<float>(index) * 149, 330, 143, 60}; }
     inline const Rect InstallSummary{940, 406, 292, 108};
     inline const Rect VersionRow{944, 409, 284, 32};
+    // Leve / Equilibrado / Máximo in the memory row of the summary.
+    inline Rect performanceChip(int index)
+    {
+        static constexpr float Widths[3] = {50, 92, 66};
+        float x = 1220 - (Widths[0] + Widths[1] + Widths[2] + 8);
+        for (int i = 0; i < index; ++i) x += Widths[i] + 4;
+        return {x, 447, Widths[index < 0 || index > 2 ? 0 : index], 26};
+    }
     inline const Rect StatusLine{940, 532, 292, 24};
     inline const Rect StatusMessage{940, 560, 292, 46};
     inline const Rect UpdateLink{940, 606, 180, 24};
@@ -79,6 +87,14 @@ namespace Layout
     inline const Rect LoginSubmit{Login.X + 28, Login.Y + 278, 196, 40};
     inline const Rect LoginRegister{Login.X + 236, Login.Y + 278, 196, 40};
     inline Rect levelColumn(int index) { return {Levels.X + 28 + static_cast<float>(index) * 140, Levels.Y + 96, 128, 200}; }
+    // Níveis / Conquistas, left of the close button, and the achievements grid (6 x 2).
+    inline Rect levelsTab(int index) { return index == 0 ? Rect{Levels.X + 452, Levels.Y + 20, 100, 34} : Rect{Levels.X + 558, Levels.Y + 20, 118, 34}; }
+    inline Rect achievementCell(int index)
+    {
+        return {Levels.X + 28 + static_cast<float>(index % 6) * 116, Levels.Y + 100 + static_cast<float>(index / 6) * 104, 108, 96};
+    }
+    // A newly won achievement, announced at the top right of the landscape.
+    inline const Rect AchievementToast{512, 86, 360, 64};
     // Modpack changelog: takes the landscape's slot until it is acknowledged.
     inline const Rect ModpackChangesMods{636, 96, 112, 38};
     inline const Rect ModpackChangesOk{756, 96, 112, 38};

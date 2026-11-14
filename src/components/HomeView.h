@@ -1,6 +1,7 @@
 #pragma once
 
 #include "components/Buttons.h"
+#include "services/Achievements.h"
 #include "services/ModpackChangelog.h"
 #include "services/SkinLookup.h"
 #include "types/LauncherState.h"
@@ -61,6 +62,11 @@ struct PlayerCardModel
     float tierProgress = 0;
     // Conta Eternal: the signed-in player, empty while signed out.
     std::wstring eternalName;
+    // Performance profile in the memory row: the memory in use and the chosen profile
+    // (-1 when the memory was set by hand), and whether it can change now.
+    std::wstring memoryAmount;
+    int profile = -1;
+    bool profilesLocked = false;
 };
 
 struct RankingRowModel
@@ -143,6 +149,17 @@ struct HomeModel
     std::wstring loginName;     // first access: the reserved nickname
     // Previews only: what the native fields would show.
     std::wstring previewLoginUser;
+    // The levels screen's tabs: 0 Níveis, 1 Conquistas.
+    int levelsTab = 0;
+    std::vector<Achievement> achievements;
+    bool achievementsKnown = false;
+    int currentStreak = 0;
+    int bestStreak = 0;
+    // A newly won achievement announced on Home (empty for none) and its entrance.
+    std::wstring toastTitle;
+    Icons::Icon toastIcon = Icons::Icon::Crown;
+    int toastMore = 0;
+    float toastReveal = 0;
 };
 
 class HeroComponent;
@@ -168,6 +185,8 @@ private:
     void drawModpackChanges(Gdiplus::Graphics& graphics, const HomeModel& model, const ControlVisuals& visuals) const;
     void drawLevels(Gdiplus::Graphics& graphics, const HomeModel& model, const ControlVisuals& visuals) const;
     void drawLogin(Gdiplus::Graphics& graphics, const HomeModel& model, const ControlVisuals& visuals) const;
+    void drawAchievements(Gdiplus::Graphics& graphics, const HomeModel& model) const;
+    void drawAchievementToast(Gdiplus::Graphics& graphics, const HomeModel& model, const ControlVisuals& visuals) const;
 public:
     // Light and deep tone of each play-time level.
     static Gdiplus::Color tierLight(int level);

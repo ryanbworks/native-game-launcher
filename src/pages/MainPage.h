@@ -25,6 +25,8 @@
 #include "services/PlaytimeStore.h"
 #include "services/SkinLookup.h"
 #include "services/VerifiedFileCache.h"
+#include "services/Achievements.h"
+#include "services/PerformanceProfiles.h"
 #include "types/LauncherState.h"
 
 #include <windows.h>
@@ -309,6 +311,27 @@ private:
     float navVelocity_ = 0;       // its spring speed, logical pixels per millisecond
     float installationReveal_ = 1;      // 0..1 opening of the installation screen
     bool installationWasVisible_ = false;
+    // Achievements: stats from the servers, what each account already won, and the notice
+    // that announces a new one on Home.
+    struct AchievementsResult { std::wstring name; AchievementStats stats; };
+    AchievementStore achievementStore_;
+    std::optional<AchievementStats> achievementStats_;
+    std::wstring achievementsName_;
+    bool achievementsPending_ = false;
+    std::chrono::steady_clock::time_point achievementsFetchedAt_{};
+    int levelsTab_ = 0;
+    std::wstring toastTitle_;
+    Icons::Icon toastIcon_ = Icons::Icon::Crown;
+    int toastMore_ = 0;
+    float toastReveal_ = 0;
+    float toastAge_ = 0;
+    void fetchAchievementsAsync(bool force = false);
+    void handleAchievements(AchievementsResult& result);
+    void dismissToast(bool openAchievements);
+    // Leve / Equilibrado / Máximo: the last one chosen, shown while the memory still matches it.
+    std::optional<PerformanceProfiles::Profile> performanceProfile_;
+    int currentProfileIndex() const;
+    void applyPerformanceProfile(int index);
     // 0..1 cascade of the cards and rows of a list; replayList() starts it again.
     float listReveal_ = 1;
     void replayList();
@@ -565,6 +588,7 @@ private:
     std::jthread exploreThread_;
     std::jthread exploreActionThread_;
     std::jthread skinSearchThread_;
+    std::jthread achievementsThread_;
     // Last member: destruction joins before any state captured by the worker is destroyed.
     std::jthread launcherUpdateThread_;
     // Last: all captured services, tracking state and HWND outlive this worker.

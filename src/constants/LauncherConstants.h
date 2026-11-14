@@ -55,6 +55,10 @@ namespace LauncherConstants
     // Installation screen, once it ended without playing.
     inline constexpr int InstallationCloseButtonId = 1145;
     inline constexpr int InstallationRetryButtonId = 1146;
+    // Achievements: the notice on Home and the two tabs of the levels screen.
+    inline constexpr int AchievementToastButtonId = 1147;
+    inline constexpr int LevelsTabLevelsId = 1148;
+    inline constexpr int LevelsTabAchievementsId = 1149;
     // Conta Eternal sign-in.
     inline constexpr int LoginUserInputId = 1301;
     inline constexpr int LoginPasswordInputId = 1302;
@@ -87,6 +91,9 @@ namespace LauncherConstants
     inline constexpr int SkinFilterCount = 4;
     inline constexpr int SkinTurnFrontId = 1343;
     inline constexpr int SkinTurnBackId = 1344;
+    // Leve, Equilibrado and Máximo on the player card.
+    inline constexpr int PerformanceFirstId = 1345;
+    inline constexpr int PerformanceCount = 3;
     inline constexpr int RetryServerButtonId = 1131;
     inline constexpr int VersionEternalButtonId = 1132;
     inline constexpr int VersionVanillaButtonId = 1133;
@@ -167,4 +174,6 @@ namespace LauncherConstants
     inline constexpr UINT SkinEventMessage = WM_APP + 21;
     // lParam: EternalFirstAccess* (is this nickname a reserved account awaiting a password).
     inline constexpr UINT EternalFirstAccessMessage = WM_APP + 22;
+    // lParam: AchievementsResult* (MainPage), the stats behind the achievements.
+    inline constexpr UINT AchievementsMessage = WM_APP + 23;
 }

@@ -71,7 +71,13 @@ namespace
         {OfflineButtonId, false, true, L"Nickname"},
         {OriginalButtonId, false, true, L"Conta original"},
         {LevelsButtonId, false, true, L"Ver todos os níveis"},
+        {LevelsTabLevelsId, false, true, L"Níveis"},
+        {LevelsTabAchievementsId, false, true, L"Conquistas"},
         {LevelsCloseButtonId, false, true, L"Fechar níveis"},
+        {AchievementToastButtonId, false, true, L"Ver conquista"},
+        {PerformanceFirstId, false, true, L"Perfil Leve"},
+        {PerformanceFirstId + 1, false, true, L"Perfil Equilibrado"},
+        {PerformanceFirstId + 2, false, true, L"Perfil Máximo"},
         {VersionEternalButtonId, false, true, L"Modpack Eternal"},
         {VersionVanillaButtonId, false, true, L"Minecraft 1.8.9"},
         {VersionChangeButtonId, false, true, L"Trocar versão"},
@@ -249,6 +255,10 @@ MainPage::~MainPage()
     exploreActionThread_.request_stop();
     skinSearchThread_.request_stop();
     if (skinSearchThread_.joinable()) skinSearchThread_.join();
+    achievementsThread_.request_stop();
+    if (achievementsThread_.joinable()) achievementsThread_.join();
+    for (MSG pending{}; PeekMessageW(&pending, nullptr, AchievementsMessage, AchievementsMessage, PM_REMOVE);)
+        delete reinterpret_cast<AchievementsResult*>(pending.lParam);
     if (skinActionThread_.joinable()) skinActionThread_.join();
     if (skinFetchThread_.joinable()) skinFetchThread_.join();
     if (exploreThread_.joinable()) exploreThread_.join();
@@ -341,6 +351,8 @@ bool MainPage::create(int showCommand, bool checkLauncherUpdate, std::wstring up
     // Files that already matched their hash are not read again on every Play.
     VerifiedFileCache::shared().open(LauncherSettingsStore::dataDirectory() / L"verified-files.txt");
     skinsShared_.load(LauncherSettingsStore::dataDirectory(), L"skins-shared.txt");
+    achievementStore_.load(LauncherSettingsStore::dataDirectory());
+    performanceProfile_ = PerformanceProfiles::load(LauncherSettingsStore::dataDirectory());
     galleryBaseUrl_ = GalleryApi::baseUrl();
     accountsBaseUrl_ = EternalAccount::baseUrl();
     if (auto session = EternalSessionStore::load(LauncherSettingsStore::dataDirectory())) {
@@ -835,10 +847,19 @@ LRESULT MainPage::handleMessage(UINT message, WPARAM wParam, LPARAM lParam)
                 serverTotalName_ = leaderboard_.playerName;
                 checkMilestone();
             }
+            fetchAchievementsAsync();
         } else if (rankingState_ == RankingState::Loading) {
             rankingState_ = RankingState::Unavailable;
         }
         redraw();
+        return 0;
+    }
+    case AchievementsMessage:
+    {
+        std::unique_ptr<AchievementsResult> result(reinterpret_cast<AchievementsResult*>(lParam));
+        if (achievementsThread_.joinable()) achievementsThread_.join();
+        achievementsPending_ = false;
+        if (result) handleAchievements(*result);
         return 0;
     }
     case LauncherUpdateProgressMessage:
@@ -1250,13 +1271,16 @@ HomeModel MainPage::homeModel(bool preview) const
     }
 
     const int serverMods = mods_.manifestKnown ? static_cast<int>(mods_.server.size()) : -1;
-    player.versionSummary = vanillaSelected_ ? std::wstring(L"1.8.9 · Sem mods")
+    player.versionSummary = vanillaSelected_ ? std::wstring(L"1.8.9 · OptiFine")
         : std::wstring(LauncherConfig::MinecraftVersion) + L" · Forge " + std::wstring(LauncherConfig::ForgeVersion);
     {
         const int memory = settings_.maximumMemoryMegabytes;
         std::wstring gigabytes = memory % 1024 == 0 ? std::to_wstring(memory / 1024) : std::to_wstring(memory / 1024) + L"," + std::to_wstring(memory % 1024 * 10 / 1024);
         player.memorySummary = gigabytes + L" GB" + (vanillaSelected_ ? L" · Java 8" : settings_.javaExecutable.empty() ? L" · Java automático" : L" · Java próprio");
+        player.memoryAmount = gigabytes + L" GB";
     }
+    player.profile = currentProfileIndex();
+    player.profilesLocked = gameRunning() || installation_.running || !viewState_.playEnabled;
     if (serverMods >= 0) {
         player.modsSummary = std::to_wstring(serverMods) + L" do servidor";
         if (modsScanned_ && !mods_.user.empty()) player.modsSummary += L" · " + std::to_wstring(mods_.user.size()) + (mods_.user.size() == 1 ? L" seu" : L" seus");
@@ -1265,7 +1289,7 @@ HomeModel MainPage::homeModel(bool preview) const
         serverMods >= 0 ? std::to_wstring(serverMods) + L" mods" : std::wstring(L"Modpack do grupo")};
     if (vanillaSelected_) {
         player.modsSummary = L"Sem mods";
-        model.chips = {L"Minecraft 1.8.9", L"Sem mods", L"Java 8"};
+        model.chips = {L"Minecraft 1.8.9", L"OptiFine", L"Java 8"};
     }
     model.reveal = preview ? 1 : portalEntrance_;
     model.energy = preview || !motionEnabled_ ? 0 : std::max({portalEnergy_, portalBurst_, .28F});
@@ -1282,6 +1306,19 @@ HomeModel MainPage::homeModel(bool preview) const
         model.levelsKnown = true;
         model.levelsSeconds = *seconds;
     }
+    model.levelsTab = levelsTab_;
+    if (achievementStats_) {
+        model.achievements = Achievements::evaluate(*achievementStats_, achievementStore_.earned(achievementsName_));
+        model.achievementsKnown = achievementStats_->known;
+        model.currentStreak = achievementStats_->currentStreak;
+        model.bestStreak = achievementStats_->bestStreak;
+    } else {
+        model.achievements = Achievements::evaluate({}, {});
+    }
+    model.toastTitle = toastTitle_;
+    model.toastIcon = toastIcon_;
+    model.toastMore = toastMore_;
+    model.toastReveal = preview ? 1.0F : toastReveal_;
     model.celebration = celebration_;
     model.celebrationSeconds = celebrationSeconds_;
     model.celebrationReveal = preview ? (celebration_ > 0 ? 1.0F : 0.0F) : celebrationReveal_;
@@ -1479,7 +1516,7 @@ void MainPage::redraw(bool animationFrame)
     }
 
     bool unsettled = std::abs(displayedProgress_ - static_cast<float>(viewState_.progressPercent)) > 0.1F || pageFade_ < 1 || installationReveal_ < 1 ||
-        listReveal_ < 1 || skinTurnGoal_.has_value() || skinTurnPause_ > 0 ||
+        listReveal_ < 1 || skinTurnGoal_.has_value() || skinTurnPause_ > 0 || !toastTitle_.empty() ||
         (page_ == LauncherPage::Skins && stageHasSkin() && GetForegroundWindow() == window_);
     for (const auto& control : controls_) {
         unsettled |= std::abs(control.hover - (control.hovered ? 1.0F : 0.0F)) > 0.005F || control.press > 0;
@@ -1616,6 +1653,14 @@ void MainPage::animate()
     pageFade_ = std::min(1.0F, pageFade_ + dt / 300);
     installationReveal_ = std::min(1.0F, installationReveal_ + dt / 280);
     listReveal_ = std::min(1.0F, listReveal_ + dt / 520);
+    if (!toastTitle_.empty()) {
+        // The notice slides in and stays a while, then gets out of the way.
+        const float revealBefore = toastReveal_;
+        toastReveal_ = std::min(1.0F, toastReveal_ + dt / 320);
+        if (page_ == LauncherPage::Home && !levelsOpen_ && !loginOpen_ && !installation_.visible) toastAge_ += dt;
+        if (toastAge_ > 9000) { toastTitle_.clear(); frameDirty_ = invalidateAll_ = true; syncControls(); }
+        else if (toastReveal_ != revealBefore) markContent(Layout::AchievementToast, 18);
+    }
     if (page_ == LauncherPage::Skins && stageHasSkin()) {
         const float turnBefore = skinTurn_;
         if (skinTurnGoal_) {
@@ -1916,6 +1961,9 @@ Gdiplus::RectF MainPage::controlBounds(int id) const
     case AccountSignOutButtonId: return Layout::EditNickname;
     case LevelsButtonId: return Layout::stat(1);
     case LevelsCloseButtonId: return Layout::LevelsClose;
+    case LevelsTabLevelsId: return Layout::levelsTab(0);
+    case LevelsTabAchievementsId: return Layout::levelsTab(1);
+    case AchievementToastButtonId: return Layout::AchievementToast;
     case ModpackChangesOkButtonId: return Layout::ModpackChangesOk;
     case ModpackChangesModsButtonId: return Layout::ModpackChangesMods;
     case SpotlightDismissButtonId: return Layout::SpotlightDismiss;
@@ -1969,7 +2017,8 @@ bool MainPage::controlVisible(int id) const
         static constexpr int LoginScreen[] = {LoginUserInputId, LoginPasswordInputId, LoginConfirmInputId, LoginSubmitButtonId,
                                               LoginRegisterButtonId, LoginCloseButtonId};
         const auto member = [id](const auto& ids) { return std::find(std::begin(ids), std::end(ids), id) != std::end(ids); };
-        if (installation_.visible ? !member(InstallationScreen) : loginOpen_ ? !member(LoginScreen) : id != LevelsCloseButtonId)
+        if (installation_.visible ? !member(InstallationScreen) : loginOpen_ ? !member(LoginScreen) :
+            id != LevelsCloseButtonId && id != LevelsTabLevelsId && id != LevelsTabAchievementsId)
             return false;
     }
     const bool leftColumn = home;
@@ -2055,7 +2104,11 @@ bool MainPage::controlVisible(int id) const
     case LevelsButtonId:
         return home;
     case LevelsCloseButtonId:
+    case LevelsTabLevelsId:
+    case LevelsTabAchievementsId:
         return home && !installation_.visible && levelsOpen_ && !loginOpen_;
+    case AchievementToastButtonId:
+        return heroVisible && !toastTitle_.empty() && celebration_ == 0;
     case ScreenshotsRefreshButtonId:
     case ScreenshotsMineTabId:
     case ScreenshotsGroupTabId:
@@ -2108,6 +2161,7 @@ bool MainPage::controlVisible(int id) const
         return page_ == LauncherPage::Screenshots && screenshotViewer_ < 0 && index < shotCount();
     }
     if (inRange(id, SkinFilterFirstId, SkinFilterCount)) return page_ == LauncherPage::Skins && skinExplore_;
+    if (inRange(id, PerformanceFirstId, PerformanceCount)) return home;
     if (inRange(id, SkinCardFirstId, SkinCardCount)) {
         if (skinExplore_)
             return page_ == LauncherPage::Skins && exploreRow_ * Layout::SkinColumns + static_cast<std::size_t>(id - SkinCardFirstId) < exploreCount();
@@ -2119,6 +2173,7 @@ bool MainPage::controlVisible(int id) const
 
 bool MainPage::controlEnabled(int id) const
 {
+    if (inRange(id, PerformanceFirstId, PerformanceCount)) return !gameRunning() && !installation_.running && viewState_.playEnabled;
     const bool idle = viewState_.playEnabled && !updatingLauncher_;
     switch (id) {
     case NicknameInputId:
@@ -2234,6 +2289,15 @@ std::wstring MainPage::controlLabel(int id) const
         return std::wstring(Names[filter]) + L", " + std::to_wstring(exploreList(filter).size() - (exploreSearch_ ? 1 : 0)) +
             (filter == exploreFilter_ ? L" (selecionado)" : L"");
     }
+    if (inRange(id, PerformanceFirstId, PerformanceCount)) {
+        const auto profile = PerformanceProfiles::All[id - PerformanceFirstId];
+        const auto memory = PerformanceProfiles::memoryFor(profile, LauncherSettingsStore::physicalMemoryMegabytes());
+        return std::wstring(L"Perfil ") + PerformanceProfiles::name(profile) + L", " + std::to_wstring(memory.maximumMegabytes / 1024) + L" GB de memória" +
+            (currentProfileIndex() == id - PerformanceFirstId ? L" (selecionado)" : L"");
+    }
+    if (id == LevelsTabLevelsId) return levelsTab_ == 0 ? L"Níveis (selecionada)" : L"Níveis";
+    if (id == LevelsTabAchievementsId) return levelsTab_ == 1 ? L"Conquistas (selecionada)" : L"Conquistas";
+    if (id == AchievementToastButtonId) return L"Nova conquista: " + toastTitle_ + L". Ver todas";
     if (id == SkinMineTabId) return skinExplore_ ? L"Minhas skins" : L"Minhas skins (selecionada)";
     if (id == SkinExploreTabId) return skinExplore_ ? L"Explorar skins (selecionada)" : L"Explorar skins";
     if (id == SkinRemoveButtonId && skinExplore_) return L"Remover skin compartilhada";
@@ -2526,6 +2590,10 @@ void MainPage::handleCommand(int id, int)
         setExploreFilter(id - SkinFilterFirstId);
         return;
     }
+    if (inRange(id, PerformanceFirstId, PerformanceCount)) {
+        applyPerformanceProfile(id - PerformanceFirstId);
+        return;
+    }
     if (inRange(id, SkinCardFirstId, SkinCardCount)) {
         if (skinExplore_) selectExplore(static_cast<int>(exploreRow_ * Layout::SkinColumns) + id - SkinCardFirstId);
         else selectSkin(static_cast<int>(skinRow_ * Layout::SkinColumns) + id - SkinCardFirstId);
@@ -2635,8 +2703,14 @@ void MainPage::handleCommand(int id, int)
         setLoginMode(loginMode_ == 0 ? 2 : 0);
         break;
     case AccountSignOutButtonId: signOutEternal(); break;
-    case LevelsButtonId: showLevels(!levelsOpen_); break;
+    case LevelsButtonId:
+        if (!levelsOpen_) levelsTab_ = 0;
+        showLevels(!levelsOpen_);
+        break;
     case LevelsCloseButtonId: showLevels(false); break;
+    case LevelsTabLevelsId: levelsTab_ = 0; redraw(); break;
+    case LevelsTabAchievementsId: levelsTab_ = 1; fetchAchievementsAsync(); redraw(); break;
+    case AchievementToastButtonId: dismissToast(true); break;
     case ModpackChangesOkButtonId:
         acknowledgeModpackChanges();
         if (const auto* play = findControl(PlayButtonId); play && play->window) SetFocus(play->window);
@@ -3063,6 +3137,107 @@ void MainPage::checkMilestone()
     if (hiddenToTray_ && trayIcon_.visible())
         trayIcon_.notify(std::wstring(L"Nova conquista: nível ") + RankTier::name(level) + L"!",
             std::to_wstring(*seconds / 3600) + L" horas jogadas. Abra o launcher para ver.");
+    redraw();
+}
+
+void MainPage::fetchAchievementsAsync(bool force)
+{
+    const auto name = rankingName();
+    if (!playtimeSyncEnabled_ || achievementsPending_ || name.empty()) return;
+    // Days and streaks change slowly: a few minutes between checks is plenty.
+    const auto now = std::chrono::steady_clock::now();
+    if (!force && _wcsicmp(name.c_str(), achievementsName_.c_str()) == 0 && achievementStats_ &&
+        now - achievementsFetchedAt_ < std::chrono::minutes(5))
+        return;
+    achievementsPending_ = true;
+    achievementsFetchedAt_ = now;
+    if (achievementsThread_.joinable()) achievementsThread_.join();
+    achievementsThread_ = std::jthread([window = window_, name](std::stop_token stop) {
+        auto* result = new AchievementsResult{name, Achievements::fetch(LauncherConfig::FileServerBaseUrl, name, stop)};
+        if (stop.stop_requested() || !PostMessageW(window, AchievementsMessage, 0, reinterpret_cast<LPARAM>(result))) delete result;
+    });
+}
+
+void MainPage::handleAchievements(AchievementsResult& result)
+{
+    if (!result.stats.known || _wcsicmp(result.name.c_str(), rankingName().c_str()) != 0) return;
+    achievementsName_ = result.name;
+    achievementStats_ = result.stats;
+    const auto list = Achievements::evaluate(result.stats, achievementStore_.earned(result.name));
+    // The first time an account is seen, what it already has is simply recorded: no
+    // pile of notices for achievements won before this version.
+    const bool firstLook = !achievementStore_.knows(result.name);
+    std::vector<const Achievement*> fresh;
+    for (const auto& achievement : list) {
+        if (!achievement.unlocked || achievementStore_.earned(result.name).count(achievement.id)) continue;
+        achievementStore_.add(result.name, achievement.id);
+        fresh.push_back(&achievement);
+    }
+    if (firstLook) achievementStore_.add(result.name, "visto");
+    if (!fresh.empty() || firstLook) achievementStore_.save();
+    if (!firstLook && !fresh.empty()) {
+        toastTitle_ = fresh.front()->title;
+        toastIcon_ = fresh.front()->icon;
+        toastMore_ = static_cast<int>(fresh.size()) - 1;
+        toastReveal_ = motionEnabled_ ? 0.0F : 1.0F;
+        toastAge_ = 0;
+        if (hiddenToTray_ && trayIcon_.visible())
+            trayIcon_.notify(L"Nova conquista: " + toastTitle_ + L"!", L"Abra o launcher para ver todas as suas conquistas.");
+    }
+    redraw();
+}
+
+void MainPage::dismissToast(bool openAchievements)
+{
+    if (toastTitle_.empty()) return;
+    toastTitle_.clear();
+    toastMore_ = 0;
+    if (openAchievements) {
+        levelsTab_ = 1;
+        showLevels(true);
+    }
+    redraw();
+}
+
+int MainPage::currentProfileIndex() const
+{
+    // A profile counts as chosen only while the memory is still the one it set.
+    if (!performanceProfile_) return -1;
+    const auto memory = PerformanceProfiles::memoryFor(*performanceProfile_, LauncherSettingsStore::physicalMemoryMegabytes());
+    if (memory.maximumMegabytes != settings_.maximumMemoryMegabytes) return -1;
+    for (int i = 0; i < 3; ++i)
+        if (PerformanceProfiles::All[i] == *performanceProfile_) return i;
+    return -1;
+}
+
+void MainPage::applyPerformanceProfile(int index)
+{
+    if (index < 0 || index > 2 || gameRunning() || installation_.running || !viewState_.playEnabled) return;
+    const auto profile = PerformanceProfiles::All[index];
+    const auto memory = PerformanceProfiles::memoryFor(profile, LauncherSettingsStore::physicalMemoryMegabytes());
+    auto candidate = settings_;
+    candidate.minimumMemoryMegabytes = memory.minimumMegabytes;
+    candidate.maximumMemoryMegabytes = memory.maximumMegabytes;
+    std::wstring error;
+    const auto data = LauncherSettingsStore::dataDirectory();
+    if (!LauncherSettingsStore::save(data, candidate, error)) {
+        viewState_.operationMessage = error;
+        redraw();
+        return;
+    }
+    settings_ = std::move(candidate);
+    // No game or installation holds these services while the profile can change.
+    minecraftLauncherService_ = std::make_unique<MinecraftLauncherService>(settings_);
+    gameInstallationService_ = std::make_unique<GameInstallationService>(settings_);
+    settingsPage_.open(settings_, {});
+    // Video options for both games; a game never opened yet gets them on its first run.
+    const bool modern = PerformanceProfiles::applyVideoOptions(LauncherSettingsStore::effectiveGameDirectory(settings_), profile, true);
+    const bool classic = PerformanceProfiles::applyVideoOptions(VanillaMinecraftService::gameDirectory(), profile, false);
+    performanceProfile_ = profile;
+    PerformanceProfiles::save(data, profile);
+    viewState_.operationMessage = modern && classic
+        ? std::wstring(L"Perfil ") + PerformanceProfiles::name(profile) + L" aplicado: memória e vídeo valem no próximo Jogar."
+        : std::wstring(L"Memória ajustada, mas não deu para salvar as opções de vídeo do jogo.");
     redraw();
 }
 
@@ -5195,7 +5370,18 @@ bool MainPage::renderPreviews(const std::filesystem::path& directory)
     if (!save(L"levels-max.png", 1)) return false;
     previewLevelsSeconds_ = 0; previewTier_ = 0;
     if (!save(L"levels-unknown.png", 1)) return false;
+    // The achievements tab, partway through.
+    levelsTab_ = 1;
+    achievementStats_ = AchievementStats{true, 18, 4, 9, 2, true, false, 3, 4, 1, "2026-11"};
+    if (!save(L"levels-achievements.png", 1)) return false;
+    levelsTab_ = 0; achievementStats_.reset();
     levelsOpen_ = false;
+    // A new achievement announced on Home, with a performance profile chosen.
+    toastTitle_ = L"Semana cheia"; toastIcon_ = Icons::Icon::Calendar; toastMore_ = 1;
+    performanceProfile_ = PerformanceProfiles::Profile::Balanced;
+    settings_.maximumMemoryMegabytes = PerformanceProfiles::memoryFor(*performanceProfile_, LauncherSettingsStore::physicalMemoryMegabytes()).maximumMegabytes;
+    if (!save(L"achievement-toast.png", 1)) return false;
+    toastTitle_.clear(); toastMore_ = 0; performanceProfile_.reset();
     // Podium at the first play-time levels.
     ready(); previewRankingHours_ = {60, 30, 8};
     if (!save(L"ranking-early.png", 1)) return false;

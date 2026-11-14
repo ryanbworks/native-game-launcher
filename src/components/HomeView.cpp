@@ -95,6 +95,7 @@ void HomeView::draw(Gdiplus::Graphics& g, const HomeModel& model, const HeroComp
         // The levels panel covers the landscape, so nothing else floats over it meanwhile.
         const bool levels = (model.levels && model.levelsReveal > .01F) || (model.login && model.loginReveal > .01F);
         if (!levels && model.celebration > 0 && model.celebrationReveal > .01F) drawCelebration(g, model, visuals);
+        else if (!levels && !model.toastTitle.empty()) drawAchievementToast(g, model, visuals);
         else if (!levels && model.spotlight && model.spotlightReveal > .01F) drawSpotlight(g, model, visuals);
     }
     drawTiles(g, model);
@@ -400,6 +401,19 @@ void HomeView::drawLevels(Gdiplus::Graphics& g, const HomeModel& model, const Co
     }
     drawRoundedRectangle(g, {p.X + .5F, p.Y + .5F, p.Width - 1, p.Height - 1}, 20, Theme::AccentOutline);
 
+    // Níveis / Conquistas.
+    {
+        const struct { int id; const wchar_t* label; } tabs[] = {{LevelsTabLevelsId, L"Níveis"}, {LevelsTabAchievementsId, L"Conquistas"}};
+        for (int i = 0; i < 2; ++i)
+            Buttons::draw(g, Layout::levelsTab(i), tabs[i].label, visuals(tabs[i].id), Buttons::Style::Chip, std::nullopt, model.levelsTab == i, 12.5F);
+    }
+    if (model.levelsTab == 1) {
+        drawAchievements(g, model);
+        Buttons::drawIcon(g, Layout::LevelsClose, Icons::Icon::Close, visuals(LevelsCloseButtonId), false, 16);
+        g.Restore(saved);
+        return;
+    }
+
     // Header: kicker, title and where the player stands.
     drawText(g, L"NÍVEIS DE TEMPO DE JOGO", {p.X + 28, p.Y + 20, 400, 16}, 11, Gdiplus::FontStyleBold, Theme::AccentLight);
     drawDisplayText(g, current > 0 ? std::wstring(L"Você é nível ") + RankTier::name(current) : std::wstring(L"Todos os níveis"),
@@ -506,6 +520,82 @@ void HomeView::drawLevels(Gdiplus::Graphics& g, const HomeModel& model, const Co
         }
     }
     g.Restore(saved);
+}
+
+void HomeView::drawAchievements(Gdiplus::Graphics& g, const HomeModel& model) const
+{
+    const auto& p = Layout::Levels;
+    const auto total = model.achievements.size();
+    const auto won = static_cast<std::size_t>(std::count_if(model.achievements.begin(), model.achievements.end(),
+        [](const Achievement& a) { return a.unlocked; }));
+    drawText(g, L"CONQUISTAS", {p.X + 28, p.Y + 20, 400, 16}, 11, Gdiplus::FontStyleBold, Theme::AccentLight);
+    drawDisplayText(g, std::to_wstring(won) + L" de " + std::to_wstring(total) + L" conquistas", {p.X + 28, p.Y + 38, 400, 30}, 21,
+        Theme::TextPrimary, Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentCenter);
+    const std::wstring subtitle = !model.achievementsKnown ? L"Jogue no servidor do grupo para começar a ganhar conquistas." :
+        model.currentStreak > 0 ? L"Sequência atual: " + std::to_wstring(model.currentStreak) + (model.currentStreak == 1 ? L" dia" : L" dias") +
+                                  L" · recorde de " + std::to_wstring(model.bestStreak) :
+                                  L"Jogue hoje para começar uma sequência. Seu recorde: " + std::to_wstring(model.bestStreak) + L".";
+    drawTextLine(g, subtitle, {p.X + 28, p.Y + 70, 640, 20}, 12.5F, Gdiplus::FontStyleRegular, Theme::TextSecondary);
+
+    for (std::size_t i = 0; i < total && i < 12; ++i) {
+        const auto& a = model.achievements[i];
+        auto c = Layout::achievementCell(static_cast<int>(i));
+        // Badges rise in one after another as the tab opens.
+        c.Y += std::round(12 * (1 - easeOut((model.levelsReveal - .04F * static_cast<float>(i)) / .6F)));
+        fillRoundedRectangle(g, c, 14, a.unlocked ? Theme::SurfaceElevated : Theme::SurfaceSunken);
+        if (a.unlocked) {
+            const auto inner = g.Save();
+            auto clip = createRoundedPath(c, 14);
+            g.SetClip(clip.get(), Gdiplus::CombineModeIntersect);
+            Gdiplus::LinearGradientBrush wash(Gdiplus::PointF(0, c.Y - 1), Gdiplus::PointF(0, c.Y + 60), Gdiplus::Color(70, 124, 92, 255),
+                Gdiplus::Color(0, 124, 92, 255));
+            g.FillRectangle(&wash, c.X, c.Y, c.Width, 60.0F);
+            g.Restore(inner);
+        }
+        drawRoundedRectangle(g, {c.X + .5F, c.Y + .5F, c.Width - 1, c.Height - 1}, 14, a.unlocked ? Theme::AccentOutline : Theme::Divider);
+        const Gdiplus::RectF emblem{c.X + (c.Width - 34) / 2, c.Y + 10, 34, 34};
+        Gdiplus::SolidBrush plate(a.unlocked ? Theme::Accent : Gdiplus::Color(255, 40, 41, 56));
+        g.FillEllipse(&plate, emblem);
+        Icons::draw(g, a.icon, {emblem.X + 8, emblem.Y + 8, 18, 18}, a.unlocked ? Theme::AccentInk : Theme::TextMuted, 1.8F);
+        drawText(g, a.title, {c.X + 4, c.Y + 48, c.Width - 8, 18}, 11.5F, Gdiplus::FontStyleBold, a.unlocked ? Theme::TextPrimary : Theme::TextSecondary,
+            Gdiplus::StringAlignmentCenter, Gdiplus::StringAlignmentCenter);
+        if (a.unlocked) {
+            drawText(g, L"Conquistada", {c.X + 4, c.Y + 68, c.Width - 8, 16}, 10.5F, Gdiplus::FontStyleRegular, Theme::AccentLight,
+                Gdiplus::StringAlignmentCenter, Gdiplus::StringAlignmentCenter);
+        } else if (a.target > 1) {
+            // Progress toward the goal: a thin bar and the count.
+            const Gdiplus::RectF track{c.X + 14, c.Y + 71, c.Width - 28, 4};
+            fillPill(g, track, Gdiplus::Color(255, 40, 41, 56));
+            const float fraction = static_cast<float>(a.progress) / static_cast<float>(a.target);
+            if (fraction > 0) fillPill(g, {track.X, track.Y, std::max(4.0F, track.Width * fraction), track.Height}, Theme::Accent);
+            drawText(g, std::to_wstring(a.progress) + L" de " + std::to_wstring(a.target) + L" " + a.unit, {c.X + 4, c.Y + 77, c.Width - 8, 16},
+                10.5F, Gdiplus::FontStyleRegular, Theme::TextMuted, Gdiplus::StringAlignmentCenter, Gdiplus::StringAlignmentCenter);
+        } else {
+            drawText(g, a.description, {c.X + 6, c.Y + 66, c.Width - 12, 28}, 10, Gdiplus::FontStyleRegular, Theme::TextMuted,
+                Gdiplus::StringAlignmentCenter);
+        }
+    }
+}
+
+void HomeView::drawAchievementToast(Gdiplus::Graphics& g, const HomeModel& model, const ControlVisuals& visuals) const
+{
+    using namespace LauncherConstants;
+    const float reveal = easeOut(model.toastReveal);
+    auto b = Layout::AchievementToast;
+    b.Y -= std::round(14 * (1 - reveal));
+    const auto v = visuals(AchievementToastButtonId);
+    fillRoundedRectangle(g, b, 16, Gdiplus::Color(static_cast<BYTE>(235 * reveal), 22, 20, 38));
+    drawRoundedRectangle(g, {b.X + .5F, b.Y + .5F, b.Width - 1, b.Height - 1}, 16, blend(Theme::AccentOutline, Theme::Accent, v.hover));
+    if (reveal < .5F) return;
+    const Gdiplus::RectF emblem{b.X + 14, b.Y + 13, 38, 38};
+    Gdiplus::SolidBrush plate(Theme::Accent);
+    g.FillEllipse(&plate, emblem);
+    Icons::draw(g, model.toastIcon, {emblem.X + 9, emblem.Y + 9, 20, 20}, Theme::AccentInk, 1.8F);
+    drawText(g, model.toastMore > 0 ? L"CONQUISTAS DESBLOQUEADAS" : L"CONQUISTA DESBLOQUEADA", {b.X + 64, b.Y + 12, b.Width - 80, 16}, 10.5F,
+        Gdiplus::FontStyleBold, Theme::AccentLight);
+    const std::wstring title = model.toastMore > 0 ? model.toastTitle + L" e mais " + std::to_wstring(model.toastMore) : model.toastTitle;
+    drawTextLine(g, title, {b.X + 64, b.Y + 29, b.Width - 80, 24}, 15, Gdiplus::FontStyleBold, Theme::TextPrimary);
+    if (v.focused) drawFocusRing(g, b, 16, Theme::AccentLight);
 }
 
 void HomeView::drawModpackChanges(Gdiplus::Graphics& g, const HomeModel& model, const ControlVisuals& visuals) const
@@ -1041,6 +1131,18 @@ void HomeView::drawPlayerCard(Gdiplus::Graphics& g, const PlayerCardModel& m, co
         for (int i = 0; i < 3; ++i) {
             const float y = box.Y + 4 + static_cast<float>(i) * 33.3F;
             if (i > 0) g.DrawLine(&line, box.X + 14, y, box.GetRight() - 14, y);
+            if (i == 1) {
+                // The memory row: how much the game gets, and the profile that sets it with the video options.
+                drawText(g, m.memoryAmount.empty() ? std::wstring(L"Memória") : m.memoryAmount, {box.X + 14, y, 60, 33}, 12.5F,
+                    Gdiplus::FontStyleBold, Theme::TextPrimary, Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentCenter);
+                static constexpr const wchar_t* Profiles[] = {L"Leve", L"Equilibrado", L"Máximo"};
+                for (int p = 0; p < 3; ++p) {
+                    auto visual = visuals(PerformanceFirstId + p);
+                    if (m.profilesLocked) visual.enabled = false;
+                    Buttons::draw(g, Layout::performanceChip(p), Profiles[p], visual, Buttons::Style::Chip, std::nullopt, m.profile == p, 11.5F);
+                }
+                continue;
+            }
             drawText(g, labels[i], {box.X + 14, y, 90, 33}, 12, Gdiplus::FontStyleRegular, Theme::TextMuted,
                 Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentCenter);
             drawText(g, values[i], {box.X + 90, y, box.Width - (i == 0 ? 122 : 104), 33}, 12.5F, Gdiplus::FontStyleBold, Theme::TextPrimary,

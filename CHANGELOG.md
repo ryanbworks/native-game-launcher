@@ -6,6 +6,18 @@ and versions use [SemVer](https://semver.org/) plus a codename.
 
 ## [Unreleased]
 
+### Added
+- **Achievements.** The levels screen gets a Conquistas tab with twelve achievements:
+  streaks of 3, 7 and 30 days, a monthly one, 30 days played, three months, a night
+  session, sharing screenshots and skins, and the podium. A new one is announced on Home.
+  The play-time server now records which days each player played (from this version on).
+- **Performance profiles.** Leve, Equilibrado and Máximo in the memory row of the player
+  card set the game's memory (within what the computer can spare) and its video options,
+  for the modpack and for 1.8.9.
+- **Code signing, ready to switch on.** The release workflow signs the executable through
+  SignPath Foundation once the project is approved (`docs/CODE_SIGNING.md`); a privacy
+  policy lists everything the launcher sends (`docs/PRIVACY.md`).
+
 ## [3.1.0] — Zenith · 2026-11-14
 
 ### Added
