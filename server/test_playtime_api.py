@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from playtime_api import ApiError, MAX_CREDIT_GAP, MAX_SESSIONS_PER_IP, SESSION_TTL, PlaytimeStore
+from playtime_api import ApiError, MAX_CREDIT_GAP, MAX_SESSIONS_PER_IP, SESSION_TTL, PlaytimeStore, local_day, streaks
 
 HOUR = 3600
 
@@ -25,6 +25,41 @@ class PlaytimeStoreTests(unittest.TestCase):
         with self.assertRaises(ApiError) as caught:
             action(*arguments)
         self.assertEqual(status, caught.exception.status)
+
+    def play_minute(self, nickname="Steve"):
+        token = self.start(nickname)["token"]
+        self.now += 60
+        self.store.end_session(token)
+
+    def test_achievements_count_days_streaks_months_and_nights(self):
+        # 2026-11-10 12:00 in Brasília is 15:00 UTC.
+        self.now = 1_794_322_800
+        for _ in range(3):
+            self.play_minute()
+            self.now += 86400
+        self.now += 86400  # a day off breaks the run
+        self.play_minute()
+        stats = self.store.achievements("steve")
+        self.assertEqual(("Steve", 4, 1, 3), (stats["name"], stats["daysPlayed"], stats["currentStreak"], stats["bestStreak"]))
+        self.assertTrue(stats["playedThisMonth"])
+        self.assertEqual(1, stats["monthsPlayed"])
+        self.assertFalse(stats["nightOwl"])
+        self.assertEqual(1, stats["rank"])
+        # 02:00 in Brasília counts as a night.
+        self.now += 86400 - 10 * HOUR
+        self.play_minute()
+        self.assertTrue(self.store.achievements("Steve")["nightOwl"])
+
+    def test_achievements_of_an_unknown_player_are_empty(self):
+        stats = self.store.achievements("Nobody")
+        self.assertEqual((0, 0, None, False), (stats["daysPlayed"], stats["bestStreak"], stats["rank"], stats["playedThisMonth"]))
+        self.assert_status(400, self.store.achievements, "../x")
+
+    def test_days_follow_the_group_time_zone(self):
+        # 01:30 UTC is still the previous evening in Brasília.
+        self.assertEqual(("2026-11-09", 22), local_day(1_794_317_400 - 12 * HOUR))
+        self.assertEqual((2, 3), streaks(["2026-11-01", "2026-11-02", "2026-11-03", "2026-11-05", "2026-11-06"], "2026-11-07"))
+        self.assertEqual((0, 2), streaks(["2026-11-01", "2026-11-02"], "2026-11-05"))
 
     def test_time_comes_from_the_server_clock(self):
         token = self.start()["token"]

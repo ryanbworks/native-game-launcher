@@ -10,6 +10,7 @@ Listens on localhost only; NGINX publishes it under /api/playtime/.
 """
 
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -50,9 +51,39 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS sessions_by_ip ON sessions(client_ip);
 CREATE TABLE IF NOT EXISTS meta (name TEXT PRIMARY KEY, value INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS play_days (
+    player_key TEXT NOT NULL,
+    day TEXT NOT NULL,
+    seconds INTEGER NOT NULL DEFAULT 0,
+    night INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (player_key, day)
+);
 """
 
 TOTAL = "(counted_seconds + imported_seconds)"
+# Days are counted in the group's time zone (Brasília, no daylight saving time).
+LOCAL_OFFSET_SECONDS = -3 * 3600
+
+
+def local_day(timestamp):
+    """(YYYY-MM-DD, hour) of a Unix time in the group's time zone."""
+    moment = time.gmtime(timestamp + LOCAL_OFFSET_SECONDS)
+    return time.strftime("%Y-%m-%d", moment), moment.tm_hour
+
+
+def streaks(days, today):
+    """(current, best) runs of consecutive days. The current run may end today or yesterday."""
+    dates = sorted({datetime.date.fromisoformat(day) for day in days})
+    best = run = 0
+    previous = None
+    for date in dates:
+        run = run + 1 if previous is not None and (date - previous).days == 1 else 1
+        best = max(best, run)
+        previous = date
+    current = 0
+    if dates and (datetime.date.fromisoformat(today) - dates[-1]).days <= 1:
+        current = run
+    return current, best
 
 
 class ApiError(Exception):
@@ -120,6 +151,15 @@ class PlaytimeStore:
             "UPDATE players SET counted_seconds = counted_seconds + ?, last_played = ? WHERE player_key = ?",
             (earned, now, session["player_key"]),
         )
+        if earned > 0:
+            # Which days somebody played, for the streak and monthly achievements.
+            day, hour = local_day(now)
+            db.execute(
+                "INSERT INTO play_days(player_key, day, seconds, night) VALUES(?, ?, ?, ?) "
+                "ON CONFLICT(player_key, day) DO UPDATE SET seconds = seconds + excluded.seconds, "
+                "night = MAX(night, excluded.night)",
+                (session["player_key"], day, earned, int(hour < 5)),
+            )
 
     def _session(self, db, token):
         if not isinstance(token, str) or not token:
@@ -255,6 +295,37 @@ class PlaytimeStore:
         finally:
             db.close()
 
+    def achievements(self, nickname):
+        """What the launcher's achievements need about one player."""
+        key = _player_key(nickname)
+        today, _ = local_day(self._now())
+        db = self._connect()
+        try:
+            player = db.execute(f"SELECT name, {TOTAL} AS total FROM players WHERE player_key = ?", (key,)).fetchone()
+            rows = db.execute("SELECT day, night FROM play_days WHERE player_key = ?", (key,)).fetchall()
+            rank = None
+            if player is not None and player["total"] > 0:
+                rank = 1 + db.execute(
+                    f"SELECT COUNT(*) AS n FROM players WHERE {TOTAL} > ? OR ({TOTAL} = ? AND player_key < ?)",
+                    (player["total"], player["total"], key),
+                ).fetchone()["n"]
+        finally:
+            db.close()
+        days = [row["day"] for row in rows]
+        current, best = streaks(days, today)
+        return {
+            "name": player["name"] if player else nickname,
+            "totalSeconds": player["total"] if player else 0,
+            "rank": rank,
+            "daysPlayed": len(days),
+            "currentStreak": current,
+            "bestStreak": best,
+            "monthsPlayed": len({day[:7] for day in days}),
+            "playedThisMonth": any(day[:7] == today[:7] for day in days),
+            "nightOwl": any(row["night"] for row in rows),
+            "month": today[:7],
+        }
+
     # Administration, for the cases an automatic rule cannot judge.
     def set_imported(self, nickname, seconds):
         key = _player_key(nickname)
@@ -328,10 +399,13 @@ def make_handler(store):
 
         def do_GET(self):
             url = urlsplit(self.path)
+            query = parse_qs(url.query)
+            if url.path == "/api/playtime/achievements":
+                self._guarded(lambda: store.achievements(query.get("name", [None])[0]))
+                return
             if url.path != "/api/playtime/leaderboard":
                 self._reply(404, {"error": "not found"})
                 return
-            query = parse_qs(url.query)
 
             def action():
                 try:

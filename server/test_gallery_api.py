@@ -232,6 +232,16 @@ class SkinStoreTests(unittest.TestCase):
         old = GalleryStore(str(database), self.root / "old-photos", clock=lambda: self.now)
         self.assertEqual(["Steve"], [skin["name"] for skin in old.list_skins()["skins"]])
 
+    def test_stats_count_what_a_player_shared(self):
+        self.share("Steve")
+        self.share("steve", "2.2.2.2")
+        self.store.add_featured("Steve", png(), False)  # the catalog is not the player's
+        self.now += 1
+        self.store.upload("Steve", "1.1.1.1", upload_body())
+        self.assertEqual({"photos": 1, "skins": 2}, self.store.stats("STEVE"))
+        self.assertEqual({"photos": 0, "skins": 0}, self.store.stats("Nobody"))
+        self.assert_status(400, self.store.stats, "a b")
+
     def test_purge_also_removes_skins(self):
         self.share("Steve")
         self.share("Aurora_")

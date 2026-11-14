@@ -424,6 +424,17 @@ class GalleryStore:
         finally:
             db.close()
 
+    def stats(self, nickname):
+        """How many pictures and skins a player shared (visible ones), for achievements."""
+        key = _player_key(nickname)
+        db = self._connect()
+        try:
+            photos = db.execute("SELECT COUNT(*) AS n FROM photos WHERE player_key = ? AND hidden = 0", (key,)).fetchone()["n"]
+            skins = db.execute("SELECT COUNT(*) AS n FROM skins WHERE player_key = ? AND hidden = 0 AND featured = 0", (key,)).fetchone()["n"]
+            return {"photos": photos, "skins": skins}
+        finally:
+            db.close()
+
     def add_featured(self, nickname, png, slim):
         """Adds (or replaces) the catalog skin of an original account."""
         key = _player_key(nickname)
@@ -649,10 +660,13 @@ def make_handler(store):
                     return
                 self._binary(data, "image/jpeg" if image else "image/png")
                 return
+            query = parse_qs(url.query)
+            if url.path == "/api/gallery/stats":
+                self._guarded(lambda: store.stats(query.get("name", [None])[0]))
+                return
             if url.path not in ("/api/gallery/photos", "/api/gallery/skins"):
                 self._reply(404, {"error": "not found"})
                 return
-            query = parse_qs(url.query)
 
             def action():
                 try:
