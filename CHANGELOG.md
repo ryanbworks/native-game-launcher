@@ -6,7 +6,12 @@ and versions use [SemVer](https://semver.org/) plus a codename.
 
 ## [Unreleased]
 
+## [3.2.0] — Zenith · 2026-11-14
+
 ### Added
+- **The group server in the game.** Before the modpack starts, the launcher puts Eternal
+  Realms (`mc-eternal.ryanbarreto.dev`) at the top of Minecraft's server list, keeping the
+  player's other servers and moving entries on the old address to the new one.
 - **Achievements.** The levels screen gets a Conquistas tab with twelve achievements:
   streaks of 3, 7 and 30 days, a monthly one, 30 days played, three months, a night
   session, sharing screenshots and skins, and the podium. A new one is announced on Home.
@@ -17,6 +22,15 @@ and versions use [SemVer](https://semver.org/) plus a codename.
 - **Code signing, ready to switch on.** The release workflow signs the executable through
   SignPath Foundation once the project is approved (`docs/CODE_SIGNING.md`); a privacy
   policy lists everything the launcher sends (`docs/PRIVACY.md`).
+- **`--no-update`** keeps a development build from replacing itself with the release.
+
+### Changed
+- **New addresses.** Files, news, updates and the APIs come from `eternal.ryanbarreto.dev`
+  and the Conta Eternal lives at `accounts-eternal.ryanbarreto.dev`. The old `aplot.cloud`
+  names keep answering for a few weeks, so installed launchers update themselves.
+
+### Fixed
+- The performance profiles could not be clicked.
 
 ## [3.1.0] — Zenith · 2026-11-14
 

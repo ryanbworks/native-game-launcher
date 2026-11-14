@@ -3,6 +3,20 @@
   "items": [
     {
       "category": "ATUALIZAÇÃO",
+      "title": "Eternal 3.2: conquistas e perfis de desempenho",
+      "date": "2026-11-14",
+      "body": "Clique na medalha e abra a aba Conquistas: sequências de dias, presença no mês, coruja, fotógrafo e mais. No card do jogador, escolha Leve, Equilibrado ou Máximo para ajustar memória e vídeo do jogo com um clique.",
+      "url": "https://github.com/ryanbworks/native-game-launcher/releases/tag/v3.2.0"
+    },
+    {
+      "category": "SERVIDOR",
+      "title": "Endereço novo: mc-eternal.ryanbarreto.dev",
+      "date": "2026-11-14",
+      "body": "O servidor agora fica em mc-eternal.ryanbarreto.dev. O launcher já coloca o Eternal Realms no topo da sua lista de servidores, e quem tinha o endereço antigo salvo passa para o novo sozinho.",
+      "url": "https://github.com/ryanbworks/native-game-launcher/releases/tag/v3.2.0"
+    },
+    {
+      "category": "ATUALIZAÇÃO",
       "title": "Eternal 3.1: Jogar bem mais rápido",
       "date": "2026-11-14",
       "body": "O launcher agora lembra os arquivos que já conferiu, então o Jogar abre bem mais rápido quando está tudo instalado. Na primeira vez depois de atualizar ele ainda confere tudo uma vez. E entrar na conta não começa mais o jogo sozinho.",
