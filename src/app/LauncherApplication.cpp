@@ -65,6 +65,9 @@ int LauncherApplication::run(int showCommand)
         Gdiplus::GdiplusShutdown(gdiplusToken);
         return rendered ? 0 : 1;
     }
+    // Development builds started with --no-update never offer to replace themselves.
+    for (int i = 1; i < argumentCount; ++i)
+        if (std::wstring_view(arguments[i]) == L"--no-update") skipUpdate = true;
     if (!mainPage->create(showCommand, !skipUpdate, std::move(updateWarning)))
     {
         mainPage.reset();
