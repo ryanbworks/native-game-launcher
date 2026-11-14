@@ -30,7 +30,8 @@ jobs:
     if: github.ref == 'refs/heads/master'
     runs-on: windows-2022
     environment: production
-    timeout-minutes: 30
+    # Room for the build plus a code signing request waiting for approval.
+    timeout-minutes: 90
     steps:
       - name: Validate version and name
         shell: pwsh
@@ -57,6 +58,41 @@ jobs:
         run: |
           ./tests/TestCiSigning.ps1
           ./tools/BuildCiRelease.ps1 -Version $env:RELEASE_VERSION -Codename $env:RELEASE_CODENAME
+      # Windows code signing through SignPath Foundation (docs/CODE_SIGNING.md). It runs once
+      # the SIGNPATH_* variables exist; until then the executable ships unsigned, as before.
+      # It comes before the update manifest, which records the hash of the signed file.
+      - name: Upload the executable for code signing
+        id: unsigned
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: unsigned-launcher
+          path: out/build/ci/EternalLauncher.exe
+          if-no-files-found: error
+          retention-days: 1
+      - name: Sign the executable with SignPath
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          # Every signing request waits for an approver on SignPath.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: out/signed
+      - name: Use the signed executable
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        shell: pwsh
+        run: |
+          $signed = Get-ChildItem out/signed -Recurse -Filter EternalLauncher.exe | Select-Object -First 1
+          if (-not $signed) { Write-Output "::error title=Signing::SignPath returned no EternalLauncher.exe."; exit 1 }
+          $signature = Get-AuthenticodeSignature $signed.FullName
+          if ($signature.Status -ne 'Valid') { Write-Output "::error title=Signing::The signed executable does not verify ($($signature.Status))."; exit 1 }
+          Write-Output "Signed by: $($signature.SignerCertificate.Subject)"
+          Copy-Item $signed.FullName out/build/ci/EternalLauncher.exe -Force
       - name: Sign the package with the existing key
         shell: pwsh
         env:
