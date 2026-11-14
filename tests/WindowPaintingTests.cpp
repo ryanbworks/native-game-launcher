@@ -210,6 +210,12 @@ public:
         check(page.handleKeyboard(escape) && !page.levelsOpen_ && page.page_==LauncherPage::Home && !shown(control(page,LevelsCloseButtonId)),
             "Escape closes the levels and stays home");
         check(shown(control(page,OfflineButtonId)) && shown(control(page,OriginalButtonId)),"home shows both account mode cards");
+        // Every control on screen needs an area to click (a drawn button with no bounds is dead).
+        page.layoutControls();page.syncControls();
+        for(const auto& entry:page.controls_)
+            if(entry.window && shown(entry.window))
+                check(entry.rect.right>entry.rect.left && entry.rect.bottom>entry.rect.top,"every visible control can be clicked");
+        check(shown(control(page,PerformanceFirstId)) && shown(control(page,PerformanceFirstId+2)),"home shows the performance profiles");
         // Conta Eternal: playing while signed out asks for the account first.
         check(!page.eternalSignedIn() && !shown(control(page,AccountSignOutButtonId)),"signed out: no sign-out button");
         SendMessageW(page.window_,WM_COMMAND,MAKEWPARAM(PlayButtonId,BN_CLICKED),reinterpret_cast<LPARAM>(control(page,PlayButtonId)));

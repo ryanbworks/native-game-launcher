@@ -2003,6 +2003,7 @@ Gdiplus::RectF MainPage::controlBounds(int id) const
     if (inRange(id, ScreenshotCardFirstId, ScreenshotCardCount)) return Layout::screenshotCard(id - ScreenshotCardFirstId);
     if (inRange(id, SkinCardFirstId, SkinCardCount)) return Layout::skinCard(id - SkinCardFirstId);
     if (inRange(id, SkinFilterFirstId, SkinFilterCount)) return Layout::skinsFilter(id - SkinFilterFirstId);
+    if (inRange(id, PerformanceFirstId, PerformanceCount)) return Layout::performanceChip(id - PerformanceFirstId);
     return {};
 }
 
