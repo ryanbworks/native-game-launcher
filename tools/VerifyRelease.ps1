@@ -24,7 +24,7 @@ $http.DefaultRequestHeaders.CacheControl = [Net.Http.Headers.CacheControlHeaderV
 $http.DefaultRequestHeaders.CacheControl.NoCache = $true
 try {
     if ($Public) {
-        $response = $http.GetAsync('https://eternalfast.aplot.cloud/launcher/latest.json').GetAwaiter().GetResult()
+        $response = $http.GetAsync('https://eternal.ryanbarreto.dev/launcher/latest.json').GetAwaiter().GetResult()
         $response.EnsureSuccessStatusCode() | Out-Null
         if (!$response.Headers.CacheControl.NoStore) {throw 'latest.json requires Cache-Control: no-store.'}
         $envelopeText = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
@@ -44,7 +44,7 @@ try {
         $payload.path -cne "/launcher/releases/$($payload.version)/EternalLauncher.exe" -or
         $payload.architecture -ne 'x64' -or $payload.size -lt 1 -or $payload.size -gt 268435456) {throw 'Invalid payload.'}
     if ($Public -or $Uploaded) {
-        $stream = $http.GetStreamAsync('https://eternalfast.aplot.cloud' + $payload.path).GetAwaiter().GetResult()
+        $stream = $http.GetStreamAsync('https://eternal.ryanbarreto.dev' + $payload.path).GetAwaiter().GetResult()
         $digest = [Security.Cryptography.IncrementalHash]::CreateHash([Security.Cryptography.HashAlgorithmName]::SHA256)
         try {
             $buffer = [byte[]]::new(65536); [long]$size=0
@@ -63,5 +63,5 @@ try {
     if ($size -ne $payload.size -or $hash -cne $payload.sha256) {throw 'Size or SHA-256 does not match.'}
     [pscustomobject]@{Version=$payload.version;Name=$payload.codename;Architecture=$payload.architecture;
         Bytes=$size;SHA256=$hash;Signature='Valid';Public=[bool]$Public;Uploaded=[bool]$Uploaded;
-        Download='https://eternalfast.aplot.cloud'+$payload.path}
+        Download='https://eternal.ryanbarreto.dev'+$payload.path}
 } finally { $rsa.Dispose(); $http.Dispose() }

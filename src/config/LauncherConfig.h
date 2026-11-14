@@ -14,8 +14,10 @@ namespace LauncherConfig
     inline constexpr std::wstring_view AssetIndex = L"5";
     inline constexpr std::wstring_view LauncherVersion = ETERNAL_VERSION_DISPLAY;
     inline constexpr std::string_view NumericVersion = ETERNAL_VERSION_NUMERIC;
-    inline constexpr std::wstring_view UpdateManifestUrl = L"https://eternalfast.aplot.cloud/launcher/latest.json";
-    inline constexpr std::wstring_view LauncherDownloadUrl = L"https://eternalfast.aplot.cloud/launcher/";
+    // The group's file server. Its host is also the only one AutoUpdate trusts.
+    inline constexpr std::wstring_view FileServerHost = L"eternal.ryanbarreto.dev";
+    inline constexpr std::wstring_view UpdateManifestUrl = L"https://eternal.ryanbarreto.dev/launcher/latest.json";
+    inline constexpr std::wstring_view LauncherDownloadUrl = L"https://eternal.ryanbarreto.dev/launcher/";
     // Public Microsoft application ID. It can be overridden with the
     // ETERNAL_LAUNCHER_MICROSOFT_CLIENT_ID variable without changing the executable.
     inline constexpr std::wstring_view MicrosoftClientId =
@@ -23,11 +25,16 @@ namespace LauncherConfig
     // Current address of the file service. It stays generic so the
     // application never depends on details of the NGINX used on the server.
     // TODO: load the base URL from an external per-environment configuration.
-    inline constexpr std::wstring_view FileServerBaseUrl = L"https://eternalfast.aplot.cloud";
+    inline constexpr std::wstring_view FileServerBaseUrl = L"https://eternal.ryanbarreto.dev";
     inline constexpr std::wstring_view FileServerLabel = L"Servidor HTTP";
     // Conta Eternal: the group's account and skin server (Drasl). Overridable with
     // ETERNAL_ACCOUNTS_URL for local tests.
-    inline constexpr std::wstring_view AccountsBaseUrl = L"https://accountseternal.aplot.cloud";
+    inline constexpr std::wstring_view AccountsBaseUrl = L"https://accounts-eternal.ryanbarreto.dev";
+    // The group's Minecraft server: the launcher keeps it in the game's server list.
+    inline constexpr std::string_view GameServerName = "Eternal Realms";
+    inline constexpr std::string_view GameServerAddress = "eternal.ryanbarreto.dev";
+    // The group's previous domain: server list entries pointing at it move to the new address.
+    inline constexpr std::string_view RetiredDomain = "aplot.cloud";
     // authlib-injector points the game at the account server. Pinned version and hash.
     inline constexpr std::wstring_view AuthlibInjectorUrl =
         L"https://authlib-injector.yushi.moe/artifact/56/authlib-injector-1.2.8.jar";

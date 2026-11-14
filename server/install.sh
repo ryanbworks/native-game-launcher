@@ -95,11 +95,11 @@ systemctl restart eternal-playtime eternal-gallery
 systemctl reload nginx
 # reload returns before the new workers start serving.
 curl --fail --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors \
-    --max-time 10 -H 'Host: eternalfast.aplot.cloud' http://127.0.0.1/manifest.json
+    --max-time 10 -H 'Host: eternal.ryanbarreto.dev' http://127.0.0.1/manifest.json
 printf '\n'
 curl --fail --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors \
-    --max-time 10 -H 'Host: eternalfast.aplot.cloud' 'http://127.0.0.1/api/playtime/leaderboard?limit=1'
+    --max-time 10 -H 'Host: eternal.ryanbarreto.dev' 'http://127.0.0.1/api/playtime/leaderboard?limit=1'
 printf '\n'
 curl --fail --silent --show-error --retry 5 --retry-delay 1 --retry-all-errors \
-    --max-time 10 -H 'Host: eternalfast.aplot.cloud' 'http://127.0.0.1/api/gallery/photos?limit=1'
+    --max-time 10 -H 'Host: eternal.ryanbarreto.dev' 'http://127.0.0.1/api/gallery/photos?limit=1'
 printf '\nInstallation complete. Upload files over SFTP to %s.\nBackup: %s\n' "$files_root" "$backup_root"

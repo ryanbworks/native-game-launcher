@@ -2,8 +2,8 @@
 
 ## Current address
 
-- Public base: `https://eternalfast.aplot.cloud/`
-- Public manifest: `https://eternalfast.aplot.cloud/manifest.json`
+- Public base: `https://eternal.ryanbarreto.dev/`
+- Public manifest: `https://eternal.ryanbarreto.dev/manifest.json`
 - Internal address: `http://10.0.0.51/`
 - Published directory: `/srv/eternal-launcher/files`
 - NGINX site: `/etc/nginx/sites-available/eternal-launcher`

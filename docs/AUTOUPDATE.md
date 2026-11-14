@@ -13,7 +13,7 @@ RAM of 4096 MiB. The Aurora name is separate from the numeric version comparison
 ## Flow on Windows
 
 On a normal start, before enabling any action, the launcher reads
-`https://eternalfast.aplot.cloud/launcher/latest.json`. If a newer version exists,
+`https://eternal.ryanbarreto.dev/launcher/latest.json`. If a newer version exists,
 it shows a native Windows prompt with the new version. **OK** confirms the download
 and installation; **Cancelar** (Cancel) keeps the current version and the next
 start will try again. After confirmation, it shows progress, validates the file,

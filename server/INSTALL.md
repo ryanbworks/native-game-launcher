@@ -1,7 +1,7 @@
 # Reinstalling the file server
 
 Current server: `10.0.0.13`, Debian 13. NGINX listens on port 80; the Cloudflare
-tunnel on Proxmox forwards `eternalfast.aplot.cloud` to `http://10.0.0.13:80` and
+tunnel on Proxmox forwards `eternal.ryanbarreto.dev` to `http://10.0.0.13:80` and
 provides public HTTPS.
 
 Copy the project's `server/` and `infrastructure/nginx/` folders to the server,
@@ -49,7 +49,7 @@ systemctl status nginx eternal-manifest.timer --no-pager
 systemctl start eternal-manifest.service
 journalctl -u eternal-manifest.service -n 20 --no-pager
 curl -f http://10.0.0.13/manifest.json
-curl -f https://eternalfast.aplot.cloud/manifest.json
+curl -f https://eternal.ryanbarreto.dev/manifest.json
 ```
 
 ## Play time and leaderboard
@@ -60,7 +60,7 @@ Include that file in your backups. Re-running the installer preserves it. To che
 
 ```sh
 systemctl status eternal-playtime --no-pager
-curl -f 'https://eternalfast.aplot.cloud/api/playtime/leaderboard?limit=5'
+curl -f 'https://eternal.ryanbarreto.dev/api/playtime/leaderboard?limit=5'
 ```
 
 The launcher sends `POST` requests to `/api/playtime/*`. If Cloudflare answers 403,
@@ -89,7 +89,7 @@ Include that folder in your backups. To check:
 
 ```sh
 systemctl status eternal-gallery --no-pager
-curl -f 'https://eternalfast.aplot.cloud/api/gallery/photos?limit=5'
+curl -f 'https://eternal.ryanbarreto.dev/api/gallery/photos?limit=5'
 ```
 
 The launcher scales and encodes each shared screenshot as JPEG (at most 1920 × 1080

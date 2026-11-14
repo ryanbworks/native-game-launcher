@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds and installs Drasl for the Conta Eternal on Debian (the "accounts" container).
-#   sudo DRASL_DOMAIN=accountseternal.aplot.cloud bash server/drasl/install.sh
+#   sudo DRASL_DOMAIN=accounts-eternal.ryanbarreto.dev bash server/drasl/install.sh
 # DRASL_BASE_URL defaults to https://$DRASL_DOMAIN; a LAN test uses
 #   DRASL_DOMAIN=10.0.0.17 DRASL_BASE_URL=http://10.0.0.17:25585
 # Re-running keeps the database and only replaces the binary, config and unit.

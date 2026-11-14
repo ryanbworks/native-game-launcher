@@ -5031,6 +5031,9 @@ void MainPage::launchPreparedMinecraft(const InstallationResult& result, bool of
     viewState_.playEnabled = false;
     redraw();
     UpdateWindow(window_);
+    // The group's server waits at the top of the multiplayer list (a file the game cannot read is left alone).
+    ServerList::ensure(LauncherSettingsStore::effectiveGameDirectory(settings_), LauncherConfig::GameServerName,
+                       LauncherConfig::GameServerAddress, LauncherConfig::RetiredDomain);
     const auto launched = minecraftLauncherService_->launch(pendingIdentity_);
     if (!launched.success) {
         InstallationCoordinator::recordLaunchFailure(settings_, launched.message);

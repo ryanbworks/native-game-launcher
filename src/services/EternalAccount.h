@@ -36,7 +36,7 @@ struct EternalSkin
 
 namespace EternalAccount
 {
-    // https://accountseternal.aplot.cloud, or ETERNAL_ACCOUNTS_URL when set (local tests).
+    // https://accounts-eternal.ryanbarreto.dev, or ETERNAL_ACCOUNTS_URL when set (local tests).
     std::wstring baseUrl();
     std::wstring registrationUrl(std::wstring_view baseUrl);
     std::wstring accountPageUrl(std::wstring_view baseUrl);

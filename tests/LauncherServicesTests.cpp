@@ -10,6 +10,7 @@
 #include "services/OptiFine.h"
 #include "services/Achievements.h"
 #include "services/PerformanceProfiles.h"
+#include "services/ServerList.h"
 #include "services/HttpDownloadClient.h"
 #include "config/LauncherConfig.h"
 #include "services/NewsFeed.h"
@@ -196,7 +197,54 @@ namespace {
               PerformanceProfiles::save(root,Profile::Light) && PerformanceProfiles::load(root)==Profile::Light,"profiles are applied and remembered");
     }
 
-    void gallery(const std::filesystem::path& root) {        const auto list=GalleryApi::parseList(R"({"photos":[
+    // A servers.dat as the game writes it: a root compound with a "servers" list.
+    std::string nbtString(std::string_view name,std::string_view value) {
+        std::string out(1,'\x08');
+        out.push_back(static_cast<char>(name.size()>>8));out.push_back(static_cast<char>(name.size()));out+=name;
+        out.push_back(static_cast<char>(value.size()>>8));out.push_back(static_cast<char>(value.size()));out+=value;
+        return out;
+    }
+    std::string serversDat(const std::vector<std::string>& entries) {
+        std::string out("\x0a\x00\x00\x09\x00\x07servers\x0a",14);
+        const auto count=static_cast<std::uint32_t>(entries.size());
+        for(int shift=24;shift>=0;shift-=8) out.push_back(static_cast<char>((count>>shift)&0xFF));
+        for(const auto& entry:entries) out+=entry+std::string(1,'\0');
+        return out+std::string(1,'\0');
+    }
+
+    void serverList(const std::filesystem::path& root) {
+        const auto fresh=ServerList::merge("","Eternal Realms","eternal.ryanbarreto.dev","aplot.cloud");
+        check(fresh && ServerList::addresses(*fresh)==std::string("eternal.ryanbarreto.dev\n"),"a missing server list gets the group's server");
+        // acceptTextures (a byte) and the icon must survive untouched.
+        const std::string accept("\x01\x00\x0e" "acceptTextures\x01",18);
+        const auto old=serversDat({nbtString("name","Grupo")+nbtString("ip","mc.aplot.cloud:25565")+accept,
+                                   nbtString("name","Hypixel")+nbtString("ip","mc.hypixel.net")+nbtString("icon","iVBORw0KGgo=")});
+        const auto moved=ServerList::merge(old,"Eternal Realms","eternal.ryanbarreto.dev","aplot.cloud");
+        check(moved && ServerList::addresses(*moved)==std::string("eternal.ryanbarreto.dev\nmc.hypixel.net\n"),
+              "an entry on the old domain moves to the new address instead of being duplicated");
+        check(moved && moved->find("acceptTextures")!=std::string::npos && moved->find("iVBORw0KGgo=")!=std::string::npos &&
+              moved->find("Grupo")!=std::string::npos,"the player's names, icons and choices are kept");
+        const auto other=serversDat({nbtString("name","Hypixel")+nbtString("ip","mc.hypixel.net")});
+        const auto added=ServerList::merge(other,"Eternal Realms","eternal.ryanbarreto.dev","aplot.cloud");
+        check(added && ServerList::addresses(*added)==std::string("eternal.ryanbarreto.dev\nmc.hypixel.net\n"),"the group's server is added at the top");
+        check(added && ServerList::merge(*added,"Eternal Realms","eternal.ryanbarreto.dev","aplot.cloud")==added,"a list that has it stays the same");
+        check(!ServerList::merge("not nbt","Eternal Realms","eternal.ryanbarreto.dev","aplot.cloud"),"a file it cannot read is left alone");
+        // A real servers.dat written by the game, when given (read only): ETERNAL_SERVERS_DAT_TEST=<path>.
+        std::array<wchar_t,MAX_PATH> real{};
+        if(GetEnvironmentVariableW(L"ETERNAL_SERVERS_DAT_TEST",real.data(),MAX_PATH)) {
+            std::ifstream input(std::filesystem::path(real.data()),std::ios::binary);
+            const std::string content((std::istreambuf_iterator<char>(input)),std::istreambuf_iterator<char>());
+            const auto listed=ServerList::addresses(content);
+            const auto merged=ServerList::merge(content,"Eternal Realms","eternal.ryanbarreto.dev","aplot.cloud");
+            check(listed && merged,"a servers.dat written by the game is understood");
+            if(listed && merged) std::cout << "real servers.dat:\n" << *listed << "after merge:\n" << *ServerList::addresses(*merged);
+        }
+        const auto game=root/L"server-list";
+        check(ServerList::ensure(game,"Eternal Realms","eternal.ryanbarreto.dev","aplot.cloud") &&
+              std::filesystem::is_regular_file(game/L"servers.dat"),"servers.dat is written in the game folder");
+    }
+    void gallery(const std::filesystem::path& root) {
+        const auto list=GalleryApi::parseList(R"({"photos":[
             {"id":"0123456789abcdef","name":"Steve","created":1800000000,"width":1920,"height":1080},
             {"id":"../../etc/passwd","name":"Steve"},
             {"id":"0123456789abcdee","name":"<script>"},
@@ -636,6 +684,7 @@ int main()
     screenshots(root);
     gallery(root);
     achievementsAndProfiles(root);
+    serverList(root);
     eternalAccount(root);
     eternalOnboarding();
     skinRenderer();

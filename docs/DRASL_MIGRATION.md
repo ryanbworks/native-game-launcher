@@ -8,7 +8,7 @@ num estado estável; nada aqui desliga o servidor até a virada final.
 
 | Tema | Decisão |
 | --- | --- |
-| Endereço | `https://accountseternal.aplot.cloud` |
+| Endereço | `https://accounts-eternal.ryanbarreto.dev` (antes `accountseternal.aplot.cloud`) |
 | Cadastro | Aberto, sem convite |
 | Modo Nickname | Sai do launcher; o servidor passa a `online-mode=true` |
 | Progresso | Obrigatório manter: cada jogador conserva o **mesmo UUID** |
@@ -59,11 +59,14 @@ vêm do `usercache.json`, do `usernamecache.json` e do FTB Teams (`world/ftbteam
   `server/drasl/install.sh`, hoje com o endereço da rede local.
 - [x] Public Hostname `accountseternal.aplot.cloud` → `10.0.0.17:25585` no Cloudflare.
 - [x] Drasl trocado para o domínio (`DRASL_DOMAIN=accountseternal.aplot.cloud bash /opt/eternal-drasl/install.sh`).
+- [ ] Mudança para `ryanbarreto.dev`: Public Hostname `accounts-eternal.ryanbarreto.dev` → `10.0.0.17:25585`,
+  depois `DRASL_DOMAIN=accounts-eternal.ryanbarreto.dev bash /opt/eternal-drasl/install.sh` (com backup).
+  O nome antigo continua apontando para o Drasl por algumas semanas.
 
 ### 3. Contas reservadas e primeiro acesso
 - [x] 19 contas criadas com o UUID dono dos dados; `verify` confirmou todas.
 - [x] Primeiro acesso no launcher: o jogador digita só o nick e cria a senha. O serviço
-  `eternal-first-access` (CT 109, `:25586`, publicado em `eternalfast…/api/accounts/`)
+  `eternal-first-access` (CT 109, `:25586`, publicado em `eternal.ryanbarreto.dev/api/accounts/`)
   guarda as senhas temporárias em `/var/lib/eternal-first-access/pending.txt` e só aceita
   o nick enquanto a senha temporária ainda funciona; depois disso o nick sai da lista.
   Qualquer pessoa que souber um nick reservado ainda sem senha pode fazer esse primeiro
@@ -81,7 +84,7 @@ vêm do `usercache.json`, do `usernamecache.json` e do FTB Teams (`world/ftbteam
 Tudo no Proxmox (`ssh root@10.0.0.10`), servidor `3634a66d…` no CT 103.
 1. **Agente sem mudar o modo**: copiar `authlib-injector-1.2.8.jar` para a pasta do
    servidor e adicionar em `user_jvm_args.txt` (guardar `.bak` antes):
-   `-javaagent:authlib-injector-1.2.8.jar=https://accountseternal.aplot.cloud/authlib-injector`
+   `-javaagent:authlib-injector-1.2.8.jar=https://accounts-eternal.ryanbarreto.dev/authlib-injector`
    Reiniciar e conferir no log `[authlib-injector]` sem erros. `online-mode` continua
    `false`: ninguém nota diferença. Isso prova que o modpack sobe com o agente.
 2. Avisar no jogo e parar o servidor.

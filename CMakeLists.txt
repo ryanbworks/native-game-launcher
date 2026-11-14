@@ -119,6 +119,8 @@ add_executable(EternalLauncher WIN32
     src/services/Achievements.h
     src/services/PerformanceProfiles.cpp
     src/services/PerformanceProfiles.h
+    src/services/ServerList.cpp
+    src/services/ServerList.h
     src/services/EternalAccount.cpp
     src/services/EternalAccount.h
     src/services/SkinLookup.cpp
@@ -321,7 +323,7 @@ endif()
 if(BUILD_TESTING)
     add_executable(LauncherServicesTests tests/LauncherServicesTests.cpp
         src/services/PlaytimeStore.cpp src/services/PlaytimeApi.cpp src/services/NewsFeed.cpp src/services/ModInventory.cpp
-        src/services/SkinLookup.cpp src/services/ScreenshotLibrary.cpp src/services/MilestoneStore.cpp src/services/ModpackChangelog.cpp src/services/GalleryApi.cpp src/services/Achievements.cpp src/services/PerformanceProfiles.cpp src/services/EternalAccount.cpp src/utils/FileHash.cpp src/components/SkinRenderer.cpp
+        src/services/SkinLookup.cpp src/services/ScreenshotLibrary.cpp src/services/MilestoneStore.cpp src/services/ModpackChangelog.cpp src/services/GalleryApi.cpp src/services/Achievements.cpp src/services/PerformanceProfiles.cpp src/services/ServerList.cpp src/services/EternalAccount.cpp src/utils/FileHash.cpp src/components/SkinRenderer.cpp
         src/services/HttpDownloadClient.cpp src/utils/JsonValue.cpp)
     target_compile_features(LauncherServicesTests PRIVATE cxx_std_20)
     target_compile_definitions(LauncherServicesTests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)

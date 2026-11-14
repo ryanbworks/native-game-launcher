@@ -27,6 +27,7 @@
 #include "services/VerifiedFileCache.h"
 #include "services/Achievements.h"
 #include "services/PerformanceProfiles.h"
+#include "services/ServerList.h"
 #include "types/LauncherState.h"
 
 #include <windows.h>

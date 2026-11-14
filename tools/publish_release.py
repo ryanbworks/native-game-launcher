@@ -257,12 +257,12 @@ def main():
     parser.add_argument("--port", type=int, default=22)
     parser.add_argument("--user", default="eternal-deploy")
     parser.add_argument("--remote-root", default="/files/launcher")
-    parser.add_argument("--base-url", default="https://eternalfast.aplot.cloud")
+    parser.add_argument("--base-url", default="https://eternal.ryanbarreto.dev")
     parser.add_argument("--public-key", type=Path, default=Path(__file__).resolve().parents[1] / "src/config/UpdatePublicKey.h")
     parser.add_argument("--check-only", action="store_true")
     parser.add_argument("--news", type=Path, help="news.json to publish next to latest.json")
     args = parser.parse_args()
-    if args.base_url != "https://eternalfast.aplot.cloud":
+    if args.base_url != "https://eternal.ryanbarreto.dev":
         parser.error("Publishing must be verified on the configured production domain")
     key_text = os.environ.pop("SFTP_PRIVATE_KEY", "")
     known_hosts = os.environ.pop("SFTP_KNOWN_HOSTS", "")

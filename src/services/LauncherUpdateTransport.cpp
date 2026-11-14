@@ -60,7 +60,7 @@ namespace
             WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, WINHTTP_FLAG_ASYNC)};
         if (!session.value) return result;
         WinHttpSetTimeouts(session.value, 5000, 5000, 10000, metadata ? 10000 : 30000);
-        InternetHandle connection{WinHttpConnect(session.value, L"eternalfast.aplot.cloud", INTERNET_DEFAULT_HTTPS_PORT, 0)};
+        InternetHandle connection{WinHttpConnect(session.value, std::wstring(LauncherConfig::FileServerHost).c_str(), INTERNET_DEFAULT_HTTPS_PORT, 0)};
         if (!connection.value) return result;
         const std::wstring ownedPath(path);
         std::array<char, 32768> buffer{}; // Outlives cancellation and the last asynchronous callback.
