@@ -30,9 +30,10 @@ namespace LauncherConfig
     // Conta Eternal: the group's account and skin server (Drasl). Overridable with
     // ETERNAL_ACCOUNTS_URL for local tests.
     inline constexpr std::wstring_view AccountsBaseUrl = L"https://accounts-eternal.ryanbarreto.dev";
-    // The group's Minecraft server: the launcher keeps it in the game's server list.
+    // The group's Minecraft server: the launcher keeps it in the game's server list. It is a TCP
+    // route of the Cloudflare tunnel, joined through the Modflared mod, so it has a name of its own.
     inline constexpr std::string_view GameServerName = "Eternal Realms";
-    inline constexpr std::string_view GameServerAddress = "eternal.ryanbarreto.dev";
+    inline constexpr std::string_view GameServerAddress = "mc-eternal.ryanbarreto.dev";
     // The group's previous domain: server list entries pointing at it move to the new address.
     inline constexpr std::string_view RetiredDomain = "aplot.cloud";
     // authlib-injector points the game at the account server. Pinned version and hash.
