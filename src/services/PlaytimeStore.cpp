@@ -1,24 +1,11 @@
 #include "services/PlaytimeStore.h"
 
-#include "utils/JsonValue.h"
-
-#include <fstream>
-#include <sstream>
-#include <system_error>
-
-std::filesystem::path PlaytimeStore::filePath(const std::filesystem::path& directory)
-{
-    return directory / L"playtime.json";
-}
+#include "config/StateStore.h"
 
 PlaytimeRecord PlaytimeStore::load(const std::filesystem::path& directory)
 {
     PlaytimeRecord record;
-    std::ifstream input(filePath(directory), std::ios::binary);
-    if (!input) return record;
-    std::ostringstream buffer;
-    buffer << input.rdbuf();
-    const auto parsed = JsonValue::parse(buffer.str());
+    const auto parsed = StateStore::read(directory, Key);
     if (!parsed || !parsed->objectValue()) return record;
     const auto number = [&](std::string_view key) {
         const auto* value = parsed->find(key);
@@ -33,25 +20,11 @@ PlaytimeRecord PlaytimeStore::load(const std::filesystem::path& directory)
 
 bool PlaytimeStore::save(const std::filesystem::path& directory, const PlaytimeRecord& record)
 {
-    std::error_code error;
-    std::filesystem::create_directories(directory, error);
-    const auto target = filePath(directory);
-    auto temporary = target;
-    temporary += L".tmp";
-    {
-        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-        if (!output) return false;
-        output << "{\"schemaVersion\":1,\"totalSeconds\":" << record.totalSeconds
-               << ",\"lastSessionSeconds\":" << record.lastSessionSeconds
-               << ",\"lastPlayed\":" << record.lastPlayed << "}\n";
-        if (!output) return false;
-    }
-    std::filesystem::rename(temporary, target, error);
-    if (error) {
-        std::filesystem::remove(temporary, error);
-        return false;
-    }
-    return true;
+    JsonValue::Object object;
+    object.insert_or_assign("totalSeconds", JsonValue(static_cast<unsigned long long>(record.totalSeconds)));
+    object.insert_or_assign("lastSessionSeconds", JsonValue(static_cast<unsigned long long>(record.lastSessionSeconds)));
+    object.insert_or_assign("lastPlayed", JsonValue(static_cast<long long>(record.lastPlayed)));
+    return StateStore::write(directory, Key, JsonValue(std::move(object)));
 }
 
 std::wstring PlaytimeStore::formatDuration(std::uint64_t seconds)

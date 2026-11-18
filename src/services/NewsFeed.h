@@ -34,11 +34,12 @@ public:
 };
 
 // What the player has read ("seen") or closed on the Home spotlight ("dismissed"),
-// kept in news-state.txt in the data folder. Unread items keep their badge until read;
+// kept under "news" in state.json. Unread items keep their badge until read;
 // dismissing only stops the spotlight for that item.
 class NewsReadState
 {
 public:
+    static constexpr const char* Key = "news";
     // Server items older than this are never announced as new.
     static constexpr int FreshDays = 21;
 
@@ -52,7 +53,7 @@ public:
     // Sets `unread` on each item: never seen, and (server items) published recently.
     void apply(std::vector<NewsItem>& items, std::wstring_view todayIso) const;
 private:
-    std::filesystem::path file_;
+    std::filesystem::path directory_;
     std::set<std::wstring> seen_;
     std::set<std::wstring> dismissed_;
     bool existed_ = false;

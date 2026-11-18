@@ -25,7 +25,7 @@ Publishing a new version is described in [AUTOUPDATE.md](AUTOUPDATE.md) and
 
 In **Nickname** mode, the private server must accept offline sessions. The nickname
 must have 3–16 letters, digits or `_`. A valid nickname is saved when you click
-**Jogar** or close the launcher, in `%APPDATA%\.eternal-launcher\nickname.txt`; this
+**Jogar** or close the launcher, in `%APPDATA%\.eternal-launcher\state.json`; this
 is not an account or authentication.
 
 In **Conta original** (original account) mode, the launcher signs in with Microsoft
@@ -108,7 +108,7 @@ with credentials.
 The **Versões** (Versions) page has a card for each game. **Usar esta versão** (use
 this version) selects it and **Jogar** starts it. Minecraft 1.8.9 is unmodified, for
 public minigame servers, and uses its own folder
-(`%APPDATA%\.eternal-launcher\minecraft-1.8.9`) and a portable Java 8, without
+(`%APPDATA%\.eternal-launcher\games\vanilla-1.8.9`) and a portable Java 8, without
 touching the modpack. Its time does not count on the leaderboard. Nickname mode only
 reaches servers that accept it. Details are in
 [MINECRAFT_LAUNCH.md](MINECRAFT_LAUNCH.md#minecraft-189-without-mods).
@@ -145,6 +145,23 @@ preserved and the launcher loads the defaults, showing a warning.
 Automatic mode looks for Java 17 in the private runtime, in `JAVA_HOME` and on the
 `PATH`, and prepares the private runtime when needed. Preferences are locked during
 login, preparation and while Minecraft is running.
+
+## The data folder
+
+Everything the launcher keeps is in `%APPDATA%\.eternal-launcher`:
+
+| Item | What it is |
+| --- | --- |
+| `settings.json` | the Settings screen |
+| `state.json` | nickname, play time, news read, achievements and the other things the launcher remembers |
+| `account\` | the Conta Eternal session, encrypted for your Windows user |
+| `games\eternal\`, `games\vanilla-1.8.9\` | the modpack and 1.8.9 instances, with their worlds |
+| `java\17\`, `java\8\` | portable Java |
+| `skins\` | your skin library |
+| `cache\` | downloads and caches; safe to delete, it comes back when needed |
+
+A folder from version 3.2.1 or older is reorganized like this the first time 3.2.2 or newer opens.
+If a game is still running from the old folder, that folder moves on a later start.
 
 Changing the folder prepares a different instance: your worlds stay in the previous
 folder. The default `.minecraft` folder, the drive root and the launcher's internal

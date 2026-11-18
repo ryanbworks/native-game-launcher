@@ -1,5 +1,6 @@
 #include "services/EternalAccount.h"
 
+#include "config/DataLayout.h"
 #include "config/LauncherConfig.h"
 #include "services/HttpDownloadClient.h"
 #include "utils/FileHash.h"
@@ -404,7 +405,7 @@ bool EternalAccount::registerAccount(std::wstring_view baseUrl, std::wstring_vie
 
 std::filesystem::path EternalAccount::ensureAuthlibInjector(const std::filesystem::path& dataDirectory, std::wstring& error, std::stop_token stop)
 {
-    const auto directory = dataDirectory / L"runtime" / L"authlib-injector";
+    const auto directory = DataLayout::authlibInjector(dataDirectory);
     const auto jar = directory / std::wstring(LauncherConfig::AuthlibInjectorFileName);
     const std::string expected(LauncherConfig::AuthlibInjectorSha256);
     std::error_code ignored;

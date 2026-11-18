@@ -18,6 +18,6 @@ public:
     [[nodiscard]] static bool isJava17Runtime(const std::filesystem::path& runtime);
     [[nodiscard]] static PortableJavaInstallResult install(
         const std::filesystem::path& archive,
-        const std::filesystem::path& dataDirectory,
+        const std::filesystem::path& runtime,  // the folder the runtime ends up in (java\17)
         std::stop_token stopToken);
 };

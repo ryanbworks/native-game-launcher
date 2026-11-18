@@ -30,7 +30,8 @@ namespace PerformanceProfiles
     // Exposed for tests: the new text of options.txt.
     std::string mergeOptions(std::string_view current, const std::map<std::string, std::string>& values, bool modern);
 
-    // The profile last chosen, kept in performance-profile.txt in the data folder.
+    // The profile last chosen, kept under "performanceProfile" in state.json.
+    inline constexpr const char* Key = "performanceProfile";
     std::optional<Profile> load(const std::filesystem::path& dataDirectory);
     bool save(const std::filesystem::path& dataDirectory, Profile profile);
 }

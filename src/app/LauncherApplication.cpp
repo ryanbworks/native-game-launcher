@@ -1,5 +1,7 @@
 #include "app/LauncherApplication.h"
 
+#include "config/DataLayout.h"
+#include "config/LauncherSettings.h"
 #include "pages/MainPage.h"
 #include "utils/DrawingUtils.h"
 #include "services/LauncherUpdateService.h"
@@ -45,6 +47,9 @@ int LauncherApplication::run(int showCommand)
                 L"Eternal Launcher", MB_OK | MB_ICONINFORMATION);
             return 1;
         }
+        // Before anything reads the data folder: an old one is moved to the current layout.
+        // Whatever cannot move yet keeps working where it is and is retried next time.
+        (void)DataLayout::migrate(LauncherSettingsStore::dataDirectory());
     }
     // The token keeps GDI+ alive for the whole lifetime of the interface.
     Gdiplus::GdiplusStartupInput startupInput;

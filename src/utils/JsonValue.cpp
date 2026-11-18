@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 
 namespace
@@ -313,13 +314,92 @@ namespace
 JsonValue::JsonValue() = default;
 JsonValue::JsonValue(bool value) : value_(value) {}
 JsonValue::JsonValue(double value) : value_(value) {}
+JsonValue::JsonValue(int value) : value_(static_cast<double>(value)) {}
+JsonValue::JsonValue(long long value) : value_(static_cast<double>(value)) {}
+JsonValue::JsonValue(unsigned long long value) : value_(static_cast<double>(value)) {}
 JsonValue::JsonValue(std::string value) : value_(std::move(value)) {}
+JsonValue::JsonValue(const char* value) : value_(std::string(value ? value : "")) {}
 JsonValue::JsonValue(Array value) : value_(std::move(value)) {}
 JsonValue::JsonValue(Object value) : value_(std::move(value)) {}
 
 std::optional<JsonValue> JsonValue::parse(std::string_view json, std::string* error)
 {
     return JsonParser(json).parse(error);
+}
+
+namespace
+{
+    void writeString(std::string& output, std::string_view text)
+    {
+        static constexpr char Hex[] = "0123456789abcdef";
+        output += '"';
+        for (const char raw : text) {
+            const auto c = static_cast<unsigned char>(raw);
+            switch (c) {
+            case '"': output += "\\\""; break;
+            case '\\': output += "\\\\"; break;
+            case '\n': output += "\\n"; break;
+            case '\r': output += "\\r"; break;
+            case '\t': output += "\\t"; break;
+            default:
+                if (c < 0x20) { output += "\\u00"; output += Hex[c >> 4]; output += Hex[c & 15]; }
+                // UTF-8 bytes pass through: the parser keeps them as they are.
+                else output += raw;
+            }
+        }
+        output += '"';
+    }
+
+    void writeNumber(std::string& output, double value)
+    {
+        if (!std::isfinite(value)) { output += '0'; return; }
+        char buffer[32];
+        // Whole numbers (counters, timestamps) are written without a fraction.
+        const auto result = value == std::floor(value) && std::fabs(value) < 9.0e15
+            ? std::to_chars(buffer, buffer + sizeof(buffer), static_cast<long long>(value))
+            : std::to_chars(buffer, buffer + sizeof(buffer), value);
+        output.append(buffer, result.ptr);
+    }
+}
+
+std::string JsonValue::serialize(int indent) const
+{
+    std::string output;
+    const auto newline = [&](int depth) {
+        if (indent <= 0) return;
+        output += '\n';
+        output.append(static_cast<std::size_t>(depth * indent), ' ');
+    };
+    const auto write = [&](const auto& self, const JsonValue& value, int depth) -> void {
+        if (const auto* boolean = std::get_if<bool>(&value.value_)) output += *boolean ? "true" : "false";
+        else if (const auto* number = std::get_if<double>(&value.value_)) writeNumber(output, *number);
+        else if (const auto* text = std::get_if<std::string>(&value.value_)) writeString(output, *text);
+        else if (const auto* array = std::get_if<Array>(&value.value_)) {
+            output += '[';
+            for (std::size_t i = 0; i < array->size(); ++i) {
+                if (i) output += ',';
+                newline(depth + 1);
+                self(self, (*array)[i], depth + 1);
+            }
+            if (!array->empty()) newline(depth);
+            output += ']';
+        } else if (const auto* object = std::get_if<Object>(&value.value_)) {
+            output += '{';
+            bool first = true;
+            for (const auto& [key, item] : *object) {
+                if (!first) output += ',';
+                first = false;
+                newline(depth + 1);
+                writeString(output, key);
+                output += indent > 0 ? ": " : ":";
+                self(self, item, depth + 1);
+            }
+            if (!object->empty()) newline(depth);
+            output += '}';
+        } else output += "null";
+    };
+    write(write, *this, 0);
+    return output;
 }
 
 const JsonValue* JsonValue::find(std::string_view key) const

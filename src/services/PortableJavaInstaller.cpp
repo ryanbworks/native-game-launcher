@@ -38,15 +38,16 @@ bool PortableJavaInstaller::isJava17Runtime(const std::filesystem::path& runtime
 
 PortableJavaInstallResult PortableJavaInstaller::install(
     const std::filesystem::path& archive,
-    const std::filesystem::path& dataDirectory,
+    const std::filesystem::path& runtime,
     std::stop_token stopToken)
 {
-    const auto staging = dataDirectory / L"runtime-staging";
-    const auto runtime = dataDirectory / L"runtime";
-    const auto backup = dataDirectory / L"runtime-backup";
+    // Siblings of the runtime folder, so the final renames stay on the same disk.
+    const auto staging = std::filesystem::path(runtime.wstring() + L"-staging");
+    const auto backup = std::filesystem::path(runtime.wstring() + L"-backup");
     std::error_code ignored;
 
-    // The names are fixed and are direct children of the launcher's private folder.
+    // The names are fixed and live inside the launcher's private folder.
+    std::filesystem::create_directories(runtime.parent_path(), ignored);
     std::filesystem::remove_all(staging, ignored);
     std::filesystem::create_directories(staging);
     if (!ArchiveExtractor::extract(archive, staging, stopToken))

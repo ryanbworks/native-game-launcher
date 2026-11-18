@@ -14,12 +14,12 @@ struct PlaytimeRecord
     std::int64_t lastPlayed = 0;
 };
 
-// Persists total play time. A running session is flushed periodically so closing
-// the launcher abruptly loses at most one interval.
+// Persists total play time ("playtime" in state.json). A running session is flushed
+// periodically so closing the launcher abruptly loses at most one interval.
 class PlaytimeStore
 {
 public:
-    static std::filesystem::path filePath(const std::filesystem::path& directory);
+    static constexpr const char* Key = "playtime";
     static PlaytimeRecord load(const std::filesystem::path& directory);
     static bool save(const std::filesystem::path& directory, const PlaytimeRecord& record);
     static std::wstring formatDuration(std::uint64_t seconds);

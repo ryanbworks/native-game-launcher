@@ -1,5 +1,6 @@
 #include "services/Achievements.h"
 
+#include "config/StateStore.h"
 #include "services/HttpDownloadClient.h"
 #include "utils/JsonValue.h"
 
@@ -128,26 +129,30 @@ std::wstring AchievementStore::key(std::wstring account)
 
 void AchievementStore::load(const std::filesystem::path& directory)
 {
-    file_ = directory / L"achievements.txt";
+    directory_ = directory;
     earned_.clear();
-    std::ifstream input(file_, std::ios::binary);
-    for (std::string line; std::getline(input, line);) {
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        const auto tab = line.find('\t');
-        if (tab == std::string::npos || tab == 0 || tab + 1 >= line.size()) continue;
-        earned_[key(wide(line.substr(0, tab)))].insert(line.substr(tab + 1));
+    const auto state = StateStore::read(directory, Key);
+    const auto* object = state ? state->objectValue() : nullptr;
+    if (!object) return;
+    for (const auto& [account, list] : *object) {
+        const auto* ids = list.arrayValue();
+        if (account.empty() || !ids) continue;
+        auto& earned = earned_[key(wide(account))];
+        for (const auto& id : *ids)
+            if (const auto* text = id.stringValue(); text && !text->empty()) earned.insert(*text);
     }
 }
 
 bool AchievementStore::save() const
 {
-    if (file_.empty()) return false;
-    std::error_code ignored;
-    std::filesystem::create_directories(file_.parent_path(), ignored);
-    std::ofstream output(file_, std::ios::binary | std::ios::trunc);
-    for (const auto& [account, ids] : earned_)
-        for (const auto& id : ids) output << utf8(account) << '\t' << id << '\n';
-    return static_cast<bool>(output);
+    if (directory_.empty()) return false;
+    JsonValue::Object object;
+    for (const auto& [account, ids] : earned_) {
+        JsonValue::Array list;
+        for (const auto& id : ids) list.push_back(JsonValue(id));
+        object.insert_or_assign(utf8(account), JsonValue(std::move(list)));
+    }
+    return StateStore::write(directory_, Key, JsonValue(std::move(object)));
 }
 
 bool AchievementStore::knows(const std::wstring& account) const

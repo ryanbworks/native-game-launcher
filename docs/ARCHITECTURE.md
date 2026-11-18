@@ -50,32 +50,67 @@ Components only draw the data they receive. They never touch the network or disk
 - `LauncherUpdateManifest`: numeric version, RSA-PSS signature and contract validation.
 - `LauncherUpdateTransport`: asynchronous WinHTTP, cancellation and AutoUpdate limits.
 - `NewsFeed`: reads the optional `news.json` from the file server (see below).
-- `NewsReadState`: remembers which news the player read or set aside (`news-state.txt`).
+- `NewsReadState`: remembers which news the player read or set aside (`news` in `state.json`).
 - `ScreenshotLibrary`: lists the `screenshots` folders of the modpack and of the 1.8.9,
   decodes thumbnails and viewer images on a worker, copies to the clipboard and
   recycles files.
 - `GalleryApi` / `GallerySharedStore`: client of the group gallery (`server/gallery_api.py`)
-  and the remove tokens of the pictures this installation shared (`gallery-shared.txt`).
+  and the remove tokens of the pictures this installation shared (`galleryShared`).
 - `ModpackChangelog`: compares the server's mod list with the one the player last
-  acknowledged (`modpack-snapshot.txt`) and names what came in, left or was updated.
-- `MilestoneStore`: the highest play-time level celebrated per nickname (`milestones.txt`).
+  acknowledged (`modpackSnapshot`) and names what came in, left or was updated.
+- `MilestoneStore`: the highest play-time level celebrated per nickname (`milestones`).
 - `EternalAccount` / `EternalSessionStore`: the Conta Eternal on the group's Drasl server
   (Yggdrasil sign-in, validate/refresh, skin upload and reset, the pinned authlib-injector),
-  with the access token stored encrypted by DPAPI in `account.dat`. See
+  with the access token stored encrypted by DPAPI in `account\account.dat`. See
   [DRASL_MIGRATION.md](DRASL_MIGRATION.md).
 - `SkinRenderer`: decodes skin textures and draws the flat front and back of a player
   for the Skins page.
 - `ModInventory`: separates server mods from the player's own and enables, disables or
   recycles player mods.
-- `PlaytimeStore` / `PlaySession`: total and last play time in `playtime.json`.
+- `PlaytimeStore` / `PlaySession`: total and last play time (`playtime` in `state.json`).
 - `PlaytimeApi`: server-side play time session, one-time import and leaderboard.
 - `SkinLookup`: finds the skin of a nickname through Mojang's public API and composes
   the 8 × 8 face shown in the player card.
 
+### Data folder
+
+`%APPDATA%\.eternal-launcher` is organized by `DataLayout` (`src/config/DataLayout.h`):
+
+```text
+settings.json            Settings screen (LauncherSettingsStore)
+state.json               what the launcher remembers (StateStore)
+account\account.dat      Conta Eternal session, DPAPI-encrypted
+games\eternal\           the modpack instance
+games\vanilla-1.8.9\     unmodified 1.8.9
+java\17\  java\8\        portable runtimes
+skins\                   the player's skin library
+cache\                   downloads, skins, authlib-injector, verified-files.txt
+```
+
+Everything in `cache\` can be deleted; it is downloaded or recomputed when needed.
+
+`state.json` holds one key per part: `nickname`, `performanceProfile`, `lastSeenVersion`,
+`playtime`, `playtimeImported`, `achievements`, `milestones`, `news`, `modpackSnapshot`,
+`galleryShared` and `skinsShared`. Several threads and, at times, two launchers (a
+development build beside the installed one) write it, so a write takes a named mutex
+shared by every process, reads the file again, replaces only its key and puts the file
+back with a temporary file and an atomic rename. An unreadable file is copied to
+`state.json.damaged` before it is replaced. Settings stay in their own file because the
+Settings screen validates and saves them as a whole.
+
+Launchers up to 3.2.1 kept these as loose files at the top of the folder. On start,
+before anything reads the folder, `DataLayout::migrate` renames the old folders into
+place, rewrites the absolute paths in each instance's `eternal-classpath.txt` and in the
+verified-files list, moves `account.dat`, and turns the text files into `state.json`
+keys (deleting them only after that file is written). A folder in use (a game still
+running) is left where it is and retried on the next start; until then the `DataLayout`
+accessors keep returning the old place. A `gameDirectory` in settings pointing at the old
+`minecraft` folder still means the default instance.
+
 ### Notification area and play time
 
 While Minecraft runs, `TrayIcon` shows an icon next to the clock with the session
-length in its tooltip. Play time is flushed to `playtime.json` every minute, when
+length in its tooltip. Play time is flushed to `state.json` every minute, when
 the game exits and when Windows ends the session. Closing the window during a
 session hides it to the notification area; the launcher exits on its own when the
 game closes. "Hide in the notification area while playing" in Settings does the
@@ -87,13 +122,13 @@ same as soon as the game starts.
 `/api/playtime/`. The launcher never reports a duration: while the game runs it
 opens a session and sends a heartbeat every minute, and the server adds up the time
 with its own clock. A gap longer than 150 seconds earns nothing and each player has
-one session at a time. `playtime.json` remains as the fallback shown while the
+one session at a time. The local `playtime` record remains as the fallback shown while the
 server is unknown and keeps counting when it is unreachable, but that time does not
 reach the leaderboard.
 
 The only number a client sends is the one-time import of the old local counter:
 once per nickname, capped (200 h by default) and closed after a deadline (60 days
-after the service first runs). `playtime-imported.marker` keeps an installation from
+after the service first runs). `playtimeImported` in `state.json` keeps an installation from
 importing again under a second nickname. Nickname mode has no login, so a nickname
 can be used by anyone and a script could imitate the launcher in real time; the
 server rules limit that but cannot rule it out. See [server/INSTALL.md](../server/INSTALL.md)
@@ -128,7 +163,7 @@ An item is **new** until the player opens the News page, as long as it is dated 
 the last 21 days (undated items and the launcher's own release notes count too). The
 newest one is shown in a spotlight over the Home landscape until it is read or set aside
 with "Depois"; setting it aside keeps the counter on the News icon and the NOVO tags.
-Read and set-aside items are kept in `news-state.txt` in the data folder.
+Read and set-aside items are kept under `news` in `state.json`.
 
 ### Group gallery
 
@@ -148,7 +183,7 @@ library (`skins/` in the data folder). Explorar loads two sources on a worker:
 - Community skins from the gallery service: `GET /api/gallery/skins` and each
   `/api/gallery/skins/<id>.png` (64 × 64 or 64 × 32, 64 KB at most). Sharing a library
   skin posts the PNG to `/api/gallery/skins?name=&title=&model=`; the remove token is
-  kept in `skins-shared.txt`, like the pictures' tokens.
+  kept under `skinsShared` in `state.json`, like the pictures' tokens.
 - The group's skins: the leaderboard's names go through the Drasl batch lookup
   (`/authlib-injector/api/profiles/minecraft`), then each player's session profile and
   texture. Players on the default skin are left out.
@@ -156,7 +191,7 @@ library (`skins/` in the data folder). Explorar loads two sources on a worker:
 The same list carries the Populares catalog (`featured`): skins of well-known original
 accounts that the server's admin loads once from Mojang (`gallery_api.py feature`), so
 Explorar always has plenty to show without every launcher calling Mojang. Textures are
-cached by id in `skin-cache/` in the data folder. Chips filter the grid by source.
+cached by id in `cache\skins\` in the data folder. Chips filter the grid by source.
 
 The search field looks a nickname up on Mojang's public APIs (`SkinLookup::fetchOriginal`:
 profile, session profile, then the texture from `textures.minecraft.net` only) and, when
@@ -185,7 +220,7 @@ and tinted name, then a crown and a passing sheen, then a shimmering outline wit
 
 ### Utilities
 
-- `JsonValue`: minimal JSON parser used for the manifests.
+- `JsonValue`: minimal JSON parser used for the manifests, and its writer for `state.json`.
 - `FileHash`: SHA-1 and SHA-256 with Windows CNG.
 - `ArchiveExtractor`: ZIP/JAR extraction using Windows' built-in support.
 - `InstallationProcess`: cancellable wait shared by extraction and the Forge installer.
@@ -214,7 +249,7 @@ Open the launcher
 [Installation tracking](INSTALLATION_TRACKING.md) documents the shared contract,
 metrics, mailbox, cancellation and test evidence.
 
-- The instance at `%APPDATA%\.eternal-launcher\minecraft` never mixes mods with the
+- The instance at `%APPDATA%\.eternal-launcher\games\eternal` never mixes mods with the
   regular `.minecraft`.
 - Java and the game come from official sources; the private server only delivers
   the group's specific content.

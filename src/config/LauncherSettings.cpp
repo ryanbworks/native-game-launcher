@@ -1,4 +1,5 @@
 #include "config/LauncherSettings.h"
+#include "config/DataLayout.h"
 #include "utils/JsonValue.h"
 #include <windows.h>
 #include <algorithm>
@@ -69,7 +70,12 @@ std::filesystem::path LauncherSettingsStore::filePath(const std::filesystem::pat
 }
 std::filesystem::path LauncherSettingsStore::effectiveGameDirectory(const LauncherSettings& settings)
 {
-    return settings.gameDirectory.empty() ? dataDirectory() / LauncherConfig::GameDirectoryName : settings.gameDirectory;
+    const auto data = dataDirectory();
+    // The modpack's old private folder (before games\eternal) still means the default one.
+    if (settings.gameDirectory.empty() ||
+        _wcsicmp(settings.gameDirectory.lexically_normal().c_str(), DataLayout::legacyEternalGame(data).lexically_normal().c_str()) == 0)
+        return DataLayout::eternalGame(data);
+    return settings.gameDirectory;
 }
 unsigned long long LauncherSettingsStore::physicalMemoryMegabytes()
 {
@@ -123,7 +129,7 @@ bool LauncherSettingsStore::validate(const LauncherSettings& s,std::wstring& err
             _wcsicmp(folder.filename().c_str(),L".minecraft")==0) {
             error=L"Escolha uma pasta exclusiva para o Eternal, diferente da raiz do disco ou de .minecraft."; return false;
         }
-        if (within(folder,data) && !equal(folder,data / LauncherConfig::GameDirectoryName)) {
+        if (within(folder,data) && !equal(folder,data / L"games" / L"eternal") && !equal(folder,DataLayout::legacyEternalGame(data))) {
             error=L"Essa pasta é reservada aos dados do launcher. Escolha uma pasta exclusiva do jogo."; return false;
         }
         if (checkPaths && std::filesystem::exists(folder,ec)) {

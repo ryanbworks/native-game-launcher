@@ -8,6 +8,8 @@
 #include "utils/JsonValue.h"
 #include "utils/UrlEncoding.h"
 
+#include <windows.h>
+
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -59,6 +61,14 @@ int main(int argumentCount, char* arguments[])
         return 0;
     }
 
+    // The automated checks never look at the real data folder (whose layout may be an old one).
+    const auto appDataFixture = std::filesystem::temp_directory_path() /
+        (L"eternal-appdata-test-" + std::to_wstring(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(appDataFixture);
+    SetEnvironmentVariableW(L"APPDATA", appDataFixture.c_str());
+    struct RemoveFixture { std::filesystem::path path; ~RemoveFixture() { std::error_code ignored; std::filesystem::remove_all(path, ignored); } }
+        removeFixture{appDataFixture};
+
     // These cases exercise validation before any access to Java or the game.
     if (!expectInvalidNickname(L"ab") ||
         !expectInvalidNickname(L"nickname_com_mais_de_16") ||
@@ -68,7 +78,7 @@ int main(int argumentCount, char* arguments[])
     }
 
     MinecraftLauncherService service;
-    const auto expectedSuffix = std::filesystem::path(L".eternal-launcher") / L"minecraft";
+    const auto expectedSuffix = std::filesystem::path(L".eternal-launcher") / L"games" / L"eternal";
     const auto gameDirectoryText = service.gameDirectory().wstring();
     const auto suffixText = expectedSuffix.wstring();
     if (!gameDirectoryText.ends_with(suffixText))
@@ -78,7 +88,7 @@ int main(int argumentCount, char* arguments[])
     }
 
     JavaRuntimeService runtimeService;
-    const auto runtimeSuffix = std::filesystem::path(L".eternal-launcher") / L"runtime";
+    const auto runtimeSuffix = std::filesystem::path(L".eternal-launcher") / L"java" / L"17";
     if (!runtimeService.runtimeDirectory().wstring().ends_with(runtimeSuffix.wstring()))
     {
         std::wcerr << L"Unexpected isolated Java directory.\n";
@@ -114,8 +124,7 @@ int main(int argumentCount, char* arguments[])
         std::wcerr << L"Nickname persistence failed.\n";
         return 15;
     }
-    std::filesystem::remove(NicknameStore::filePath(settingsDirectory));
-    std::filesystem::remove(settingsDirectory);
+    std::filesystem::remove_all(settingsDirectory);
 
     // A mod removed from the manifest disappears from the instance on the next Play.
     const auto modsDirectory = std::filesystem::temp_directory_path() /

@@ -93,12 +93,14 @@ namespace GalleryApi
 }
 
 // What this installation shared: the remove token of each picture and which local
-// file it came from, kept in gallery-shared.txt in the data folder.
+// file it came from, kept under "galleryShared" in state.json ("skinsShared" for skins).
 class GallerySharedStore
 {
 public:
     struct Entry { std::wstring id; std::string token; std::wstring source; };
-    void load(const std::filesystem::path& directory, const wchar_t* fileName = L"gallery-shared.txt");
+    static constexpr const char* PicturesKey = "galleryShared";
+    static constexpr const char* SkinsKey = "skinsShared";
+    void load(const std::filesystem::path& directory, const char* key = PicturesKey);
     bool save() const;
     void add(Entry entry);
     void erase(const std::wstring& id);
@@ -107,6 +109,7 @@ public:
     // A local screenshot's identity: its file name and size.
     static std::wstring sourceKey(const std::filesystem::path& file, std::uintmax_t size);
 private:
-    std::filesystem::path file_;
+    std::filesystem::path directory_;
+    std::string key_;
     std::vector<Entry> entries_;
 };

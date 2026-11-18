@@ -1,6 +1,8 @@
 #include "services/JavaRuntimeService.h"
 
+#include "config/DataLayout.h"
 #include "config/LauncherConfig.h"
+#include "config/LauncherSettings.h"
 #include "services/HttpDownloadClient.h"
 #include "services/JavaRuntimePackage.h"
 #include "services/PortableJavaInstaller.h"
@@ -13,19 +15,6 @@
 
 namespace
 {
-    std::wstring readEnvironmentVariable(const wchar_t* name)
-    {
-        wchar_t* value = nullptr;
-        std::size_t length = 0;
-        if (_wdupenv_s(&value, &length, name) != 0 || value == nullptr)
-        {
-            return {};
-        }
-        std::wstring result(value);
-        std::free(value);
-        return result;
-    }
-
     std::wstring utf8ToWide(std::string_view value)
     {
         if (value.empty())
@@ -53,7 +42,7 @@ bool JavaRuntimeService::isInstalled() const
 
 std::filesystem::path JavaRuntimeService::runtimeDirectory() const
 {
-    return dataDirectory() / L"runtime";
+    return DataLayout::java17(dataDirectory());
 }
 
 JavaRuntimeResult JavaRuntimeService::ensureInstalled(
@@ -88,7 +77,7 @@ JavaRuntimeResult JavaRuntimeService::install(
     }
 
     const auto dataPath = dataDirectory();
-    const auto downloadPath = dataPath / L"downloads" / L"temurin-17.zip.part";
+    const auto downloadPath = DataLayout::downloads(dataPath) / L"temurin-17.zip.part";
     const auto report = [&progress](InstallationActivity activity, std::wstring_view message)
     {
         if (progress)
@@ -139,7 +128,7 @@ JavaRuntimeResult JavaRuntimeService::install(
 
         report(InstallationActivity::Extracting, L"Extraindo o Java portátil...");
         const auto installation = PortableJavaInstaller::install(
-            downloadPath, dataPath, stopToken);
+            downloadPath, runtimeDirectory(), stopToken);
         std::error_code ignored;
         std::filesystem::remove(downloadPath, ignored);
         if (!installation.success)
@@ -160,8 +149,5 @@ JavaRuntimeResult JavaRuntimeService::install(
 
 std::filesystem::path JavaRuntimeService::dataDirectory() const
 {
-    const auto appData = readEnvironmentVariable(L"APPDATA");
-    return appData.empty()
-        ? std::filesystem::current_path() / LauncherConfig::DataDirectoryName
-        : std::filesystem::path(appData) / LauncherConfig::DataDirectoryName;
+    return LauncherSettingsStore::dataDirectory();
 }

@@ -49,11 +49,12 @@ namespace Achievements
     std::vector<Achievement> evaluate(const AchievementStats& stats, const std::set<std::string>& earned);
 }
 
-// Which achievements each account already won, in achievements.txt in the data folder,
+// Which achievements each account already won, under "achievements" in state.json,
 // so each one is announced once.
 class AchievementStore
 {
 public:
+    static constexpr const char* Key = "achievements";
     void load(const std::filesystem::path& directory);
     bool save() const;
     bool knows(const std::wstring& account) const;
@@ -61,6 +62,6 @@ public:
     void add(const std::wstring& account, const std::string& id);
 private:
     static std::wstring key(std::wstring account);
-    std::filesystem::path file_;
+    std::filesystem::path directory_;
     std::map<std::wstring, std::set<std::string>> earned_;
 };

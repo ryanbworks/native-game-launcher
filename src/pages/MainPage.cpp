@@ -1,8 +1,10 @@
 #include "pages/MainPage.h"
 
 #include "components/Layout.h"
+#include "config/DataLayout.h"
 #include "config/LauncherConfig.h"
 #include "config/NicknameStore.h"
+#include "config/StateStore.h"
 #include "constants/LauncherConstants.h"
 #include "mocks/MockLauncherData.h"
 #include "services/GameInstallationService.h"
@@ -349,13 +351,13 @@ bool MainPage::create(int showCommand, bool checkLauncherUpdate, std::wstring up
     milestones_.load(LauncherSettingsStore::dataDirectory());
     galleryShared_.load(LauncherSettingsStore::dataDirectory());
     // Files that already matched their hash are not read again on every Play.
-    VerifiedFileCache::shared().open(LauncherSettingsStore::dataDirectory() / L"verified-files.txt");
-    skinsShared_.load(LauncherSettingsStore::dataDirectory(), L"skins-shared.txt");
+    VerifiedFileCache::shared().open(DataLayout::verifiedFiles(LauncherSettingsStore::dataDirectory()));
+    skinsShared_.load(LauncherSettingsStore::dataDirectory(), GallerySharedStore::SkinsKey);
     achievementStore_.load(LauncherSettingsStore::dataDirectory());
     performanceProfile_ = PerformanceProfiles::load(LauncherSettingsStore::dataDirectory());
     galleryBaseUrl_ = GalleryApi::baseUrl();
     accountsBaseUrl_ = EternalAccount::baseUrl();
-    if (auto session = EternalSessionStore::load(LauncherSettingsStore::dataDirectory())) {
+    if (auto session = EternalSessionStore::load(DataLayout::account(LauncherSettingsStore::dataDirectory()))) {
         eternalSession_ = std::move(*session);
         startSkinLookup();
     }
@@ -716,7 +718,7 @@ LRESULT MainPage::handleMessage(UINT message, WPARAM wParam, LPARAM lParam)
             return 0;
         }
         eternalSession_ = std::move(result->session);
-        if (!EternalSessionStore::save(LauncherSettingsStore::dataDirectory(), eternalSession_))
+        if (!EternalSessionStore::save(DataLayout::account(LauncherSettingsStore::dataDirectory()), eternalSession_))
             MessageBoxW(window_, L"Você entrou, mas não foi possível lembrar a sessão. Na próxima abertura será preciso entrar de novo.",
                 L"Conta Eternal", MB_OK | MB_ICONWARNING);
         // Signing in only signs in: Home comes back (with a level reached, if any) and the
@@ -738,7 +740,7 @@ LRESULT MainPage::handleMessage(UINT message, WPARAM wParam, LPARAM lParam)
             viewState_.primaryActionLabel = L"JOGAR";
             if (ready->auth.rejected) {
                 // The token is gone for good: sign out locally and ask for the password.
-                EternalSessionStore::clear(LauncherSettingsStore::dataDirectory());
+                EternalSessionStore::clear(DataLayout::account(LauncherSettingsStore::dataDirectory()));
                 const auto name = eternalSession_.name;
                 eternalSession_ = {};
                 viewState_.operation = LauncherOperation::ReadyToPlay;
@@ -768,7 +770,7 @@ LRESULT MainPage::handleMessage(UINT message, WPARAM wParam, LPARAM lParam)
         // A refreshed token replaces the stored one.
         if (ready->auth.session.accessToken != eternalSession_.accessToken) {
             eternalSession_ = ready->auth.session;
-            (void)EternalSessionStore::save(LauncherSettingsStore::dataDirectory(), eternalSession_);
+            (void)EternalSessionStore::save(DataLayout::account(LauncherSettingsStore::dataDirectory()), eternalSession_);
         }
         viewState_.playEnabled = true;
         pendingNickname_ = eternalSession_.name;
@@ -3008,23 +3010,14 @@ void MainPage::loadNewsReadState()
 {
     const auto directory = LauncherSettingsStore::dataDirectory();
     newsRead_.load(directory);
-    const auto file = directory / L"last-version.txt";
     const std::string current(LauncherConfig::NumericVersion);
-    std::string previous;
-    std::error_code ignored;
-    const bool existed = std::filesystem::exists(file, ignored);
-    if (existed) {
-        std::ifstream input(file, std::ios::binary);
-        std::getline(input, previous);
-        while (!previous.empty() && (previous.back() == '\r' || previous.back() == ' ')) previous.pop_back();
-    }
-    if (previous != current) {
+    const auto saved = StateStore::read(directory, "lastSeenVersion");
+    const auto* previous = saved ? saved->stringValue() : nullptr;
+    if (!previous || *previous != current) {
         // Existing players (a saved nickname) are told what changed; a first install is not.
-        const bool returning = existed || std::filesystem::exists(NicknameStore::filePath(directory), ignored);
+        const bool returning = previous || !NicknameStore::load(directory).empty();
         if (!returning) { newsRead_.markSeen(NewsFeed::releaseNotes()); newsRead_.save(); }
-        std::filesystem::create_directories(directory, ignored);
-        std::ofstream output(file, std::ios::binary | std::ios::trunc);
-        output << current << "\n";
+        (void)StateStore::write(directory, "lastSeenVersion", JsonValue(current));
     }
     applyNewsReadState();
 }
@@ -3890,7 +3883,7 @@ void MainPage::signOutEternal()
     if (MessageBoxW(window_, prompt.c_str(), L"Sair da conta", MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2) != IDOK) return;
     // Revoking the token on the server is best effort; the local session goes now.
     std::thread([url = accountsBaseUrl_, session = eternalSession_] { EternalAccount::signOut(url, session); }).detach();
-    EternalSessionStore::clear(LauncherSettingsStore::dataDirectory());
+    EternalSessionStore::clear(DataLayout::account(LauncherSettingsStore::dataDirectory()));
     eternalSession_ = {};
     serverTotalSeconds_.reset();
     redraw();
@@ -3902,7 +3895,7 @@ void MainPage::signOutEternal()
 
 std::filesystem::path MainPage::skinLibraryDirectory() const
 {
-    return LauncherSettingsStore::dataDirectory() / L"skins";
+    return DataLayout::skins(LauncherSettingsStore::dataDirectory());
 }
 
 SkinsModel MainPage::skinsModel(bool preview) const
@@ -4066,7 +4059,7 @@ void MainPage::loadExplore()
     const auto generation = ++exploreGeneration_;
     if (exploreThread_.joinable()) exploreThread_.join();
     exploreThread_ = std::jthread([window = window_, accounts = accountsBaseUrl_, gallery = galleryBaseUrl_, names, generation,
-                                   cache = LauncherSettingsStore::dataDirectory() / L"skin-cache"](std::stop_token stop) {
+                                   cache = DataLayout::skinCache(LauncherSettingsStore::dataDirectory())](std::stop_token stop) {
         // Shared and Populares skins first: one list and small, cached files. The players' skins follow.
         auto* community = new SkinEvent;
         community->kind = SkinEvent::Kind::ExploreCommunity;

@@ -57,14 +57,12 @@ namespace LauncherConfig
         "66bfea9963bfa60d88bab6b2750e74a958392715";
 
     // The isolated instance keeps Eternal Launcher's mods from mixing with other
-    // installations in the user's .minecraft folder.
+    // installations in the user's .minecraft folder. What goes where inside it: DataLayout.h.
     inline constexpr std::wstring_view DataDirectoryName = L".eternal-launcher";
-    inline constexpr std::wstring_view GameDirectoryName = L"minecraft";
 
     // Unmodified 1.8.9, kept apart from the group's instance.
     inline constexpr std::wstring_view VanillaVersion = L"1.8.9";
     inline constexpr std::wstring_view VanillaAssetIndex = L"1.8";
-    inline constexpr std::wstring_view VanillaGameDirectoryName = L"minecraft-1.8.9";
     // OptiFine for the 1.8.9. Its license forbids redistributing the file, so each
     // launcher fetches it from optifine.net: the download page hands out a link with a
     // token, and the file must match the pinned size and SHA-256.
@@ -76,7 +74,6 @@ namespace LauncherConfig
     inline constexpr std::wstring_view OptiFineLaunchwrapper = L"launchwrapper-of-2.2.jar";
     inline constexpr std::string_view OptiFineLaunchwrapperSha256 = "09d8f19ac2fb654809f72469106bcbabbde178db28903c4abfcf4a9114cc3a8c";
     inline constexpr std::wstring_view OptiFineVersionName = L"1.8.9-OptiFine_HD_U_M5";
-    inline constexpr std::wstring_view Java8RuntimeDirectoryName = L"runtime-8";
     inline constexpr std::wstring_view Java8RuntimeMetadataUrl =
         L"https://api.adoptium.net/v3/assets/latest/8/hotspot"
         L"?architecture=x64&image_type=jre&os=windows&vendor=eclipse";

@@ -1,6 +1,7 @@
 #include "services/NewsFeed.h"
 
 #include "config/LauncherConfig.h"
+#include "config/StateStore.h"
 #include "services/HttpDownloadClient.h"
 #include "utils/JsonValue.h"
 
@@ -132,36 +133,34 @@ int NewsFeed::ageInDays(std::wstring_view isoDate, std::wstring_view todayIso)
 
 void NewsReadState::load(const std::filesystem::path& directory)
 {
-    file_ = directory / L"news-state.txt";
+    directory_ = directory;
     seen_.clear();
     dismissed_.clear();
-    std::error_code ignored;
-    existed_ = std::filesystem::exists(file_, ignored);
-    std::ifstream input(file_, std::ios::binary);
-    for (std::string line; std::getline(input, line);) {
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        if (line.size() < 3 || line[1] != '\t') continue;
-        auto value = wide(line.substr(2));
-        if (line[0] == 's') seen_.insert(std::move(value));
-        else if (line[0] == 'd') dismissed_.insert(std::move(value));
-    }
+    const auto state = StateStore::read(directory, Key);
+    existed_ = state && state->objectValue();
+    if (!existed_) return;
+    const auto collect = [&](const char* name, std::set<std::wstring>& target) {
+        const auto* list = state->find(name);
+        if (const auto* items = list ? list->arrayValue() : nullptr)
+            for (const auto& item : *items)
+                if (const auto* text = item.stringValue()) target.insert(StateStore::wide(*text));
+    };
+    collect("seen", seen_);
+    collect("dismissed", dismissed_);
 }
 
 bool NewsReadState::save() const
 {
-    if (file_.empty()) return false;
-    std::error_code ignored;
-    std::filesystem::create_directories(file_.parent_path(), ignored);
-    std::ofstream output(file_, std::ios::binary | std::ios::trunc);
-    const auto narrow = [](const std::wstring& value) {
-        const int size = WideCharToMultiByte(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), nullptr, 0, nullptr, nullptr);
-        std::string result(static_cast<std::size_t>(std::max(size, 0)), '\0');
-        if (size > 0) WideCharToMultiByte(CP_UTF8, 0, value.data(), static_cast<int>(value.size()), result.data(), size, nullptr, nullptr);
-        return result;
+    if (directory_.empty()) return false;
+    const auto list = [](const std::set<std::wstring>& keys) {
+        JsonValue::Array items;
+        for (const auto& key : keys) items.push_back(JsonValue(StateStore::utf8(key)));
+        return JsonValue(std::move(items));
     };
-    for (const auto& key : seen_) output << "s\t" << narrow(key) << "\n";
-    for (const auto& key : dismissed_) output << "d\t" << narrow(key) << "\n";
-    return static_cast<bool>(output);
+    JsonValue::Object object;
+    object.insert_or_assign("seen", list(seen_));
+    object.insert_or_assign("dismissed", list(dismissed_));
+    return StateStore::write(directory_, Key, JsonValue(std::move(object)));
 }
 
 void NewsReadState::apply(std::vector<NewsItem>& items, std::wstring_view todayIso) const

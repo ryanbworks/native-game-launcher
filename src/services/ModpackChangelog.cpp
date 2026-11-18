@@ -1,5 +1,7 @@
 #include "services/ModpackChangelog.h"
 
+#include "config/StateStore.h"
+
 #include <windows.h>
 
 #include <algorithm>
@@ -132,21 +134,18 @@ ModpackChanges ModpackChangelog::compare(const std::vector<std::wstring>& before
 
 std::optional<std::vector<std::wstring>> ModpackChangelog::load(const std::filesystem::path& directory)
 {
-    std::ifstream input(directory / L"modpack-snapshot.txt", std::ios::binary);
-    if (!input) return std::nullopt;
+    const auto state = StateStore::read(directory, Key);
+    const auto* list = state ? state->arrayValue() : nullptr;
+    if (!list) return std::nullopt;
     std::vector<std::wstring> files;
-    for (std::string line; std::getline(input, line);) {
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        if (!line.empty()) files.push_back(wide(line));
-    }
+    for (const auto& item : *list)
+        if (const auto* text = item.stringValue(); text && !text->empty()) files.push_back(wide(*text));
     return files;
 }
 
 bool ModpackChangelog::save(const std::filesystem::path& directory, const std::vector<std::wstring>& files)
 {
-    std::error_code ignored;
-    std::filesystem::create_directories(directory, ignored);
-    std::ofstream output(directory / L"modpack-snapshot.txt", std::ios::binary | std::ios::trunc);
-    for (const auto& file : files) output << utf8(file) << '\n';
-    return static_cast<bool>(output);
+    JsonValue::Array list;
+    for (const auto& file : files) list.push_back(JsonValue(utf8(file)));
+    return StateStore::write(directory, Key, JsonValue(std::move(list)));
 }

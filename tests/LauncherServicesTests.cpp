@@ -18,12 +18,19 @@
 #include "services/PlaytimeStore.h"
 #include "services/ScreenshotLibrary.h"
 #include "services/SkinLookup.h"
+#include "config/DataLayout.h"
+#include "config/NicknameStore.h"
+#include "config/StateStore.h"
 
 #include <windows.h>
 
+#include <algorithm>
 #include <array>
+#include <cwctype>
 #include <fstream>
 #include <iostream>
+#include <iterator>
+#include <thread>
 
 namespace {
     int failures=0;
@@ -54,8 +61,10 @@ namespace {
         check(PlaytimeStore::save(directory,record),"save replaces an existing file");
         const auto loaded=PlaytimeStore::load(directory);
         check(loaded.totalSeconds==725 && loaded.lastSessionSeconds==125 && loaded.lastPlayed==now+125,"saved record loads back");
-        write(PlaytimeStore::filePath(directory),"{not json");
+        write(StateStore::filePath(directory),"{not json");
         check(PlaytimeStore::load(directory).totalSeconds==0,"a corrupt file never blocks the launcher");
+        check(PlaytimeStore::save(directory,record) && PlaytimeStore::load(directory).totalSeconds==725,"saving over a corrupt file works");
+        check(std::filesystem::exists(StateStore::filePath(directory).wstring()+L".damaged"),"the unreadable file is kept aside, not lost");
         session.stop();
         check(!session.active() && session.elapsedSeconds(start+std::chrono::seconds(5))==0,"stopped session counts nothing");
     }
@@ -571,9 +580,126 @@ namespace {
         MilestoneStore reloaded;
         reloaded.load(directory);
         check(reloaded.celebrated(L"steve")==3 && reloaded.celebrated(L"AURORA_")==1,"celebrated levels survive, case-insensitive");
-        write(directory/L"milestones.txt","Steve\t4\nbroken line\n\t2\nLuna\tx\n");
+        write(StateStore::filePath(directory),R"({"milestones":{"Steve":4,"Luna":"x","":2,"Mia":12}})");
         reloaded.load(directory);
-        check(reloaded.celebrated(L"Steve")==4 && reloaded.celebrated(L"Luna")==-1,"malformed lines are ignored");
+        check(reloaded.celebrated(L"Steve")==4 && reloaded.celebrated(L"Luna")==-1 && reloaded.celebrated(L"Mia")==-1,"malformed entries are ignored");
+    }
+
+    void stateStore(const std::filesystem::path& root) {
+        const auto directory=root/L"state";
+        check(!StateStore::read(directory,"x"),"nothing is read from a missing file");
+        check(StateStore::write(directory,"text",JsonValue("a \"quoted\"\ttab, ação \x01")),"a string saves");
+        check(StateStore::write(directory,"number",JsonValue(1'800'000'000'123LL)),"a large whole number saves");
+        const auto text=StateStore::read(directory,"text");
+        check(text && text->stringValue() && *text->stringValue()=="a \"quoted\"\ttab, ação \x01","strings round-trip with escapes and UTF-8");
+        const auto number=StateStore::read(directory,"number");
+        check(number && number->numberValue()==1'800'000'000'123.0,"numbers keep every digit");
+        check(StateStore::read(directory,"schemaVersion") && StateStore::read(directory,"text"),"one key never replaces the others");
+        // Several threads, each with its own key, the way the window and the playtime worker write.
+        std::vector<std::thread> writers;
+        for(int i=0;i<8;++i) writers.emplace_back([&,i] {for(int n=1;n<=10;++n) (void)StateStore::write(directory,"k"+std::to_string(i),JsonValue(n));});
+        for(auto& writer:writers) writer.join();
+        bool all=true;
+        for(int i=0;i<8;++i) {const auto value=StateStore::read(directory,"k"+std::to_string(i));all=all && value && value->numberValue()==10;}
+        check(all,"concurrent writers of different keys never lose each other's last value");
+        check(StateStore::erase(directory,"k0") && !StateStore::read(directory,"k0") && StateStore::read(directory,"k1"),"erase removes only its key");
+        check(!std::filesystem::exists(StateStore::filePath(directory).wstring()+L".tmp"),"no temporary file is left behind");
+    }
+
+    void dataMigration(const std::filesystem::path& root) {
+        const auto data=root/L"migration"/L".eternal-launcher";
+        const auto mk=[](const std::filesystem::path& path,const char* content) {
+            std::filesystem::create_directories(path.parent_path());write(path,content);};
+        // A folder as 3.2.1 left it.
+        mk(data/L"minecraft"/L"saves"/L"world"/L"level.dat","world");
+        const auto oldJar=(data/L"minecraft"/L"libraries"/L"a.jar").wstring();
+        const auto oldVanillaJar=(data/L"minecraft-1.8.9"/L"libraries"/L"b.jar").wstring();
+        mk(data/L"minecraft"/L"eternal-classpath.txt",(StateStore::utf8(oldJar)+"\n").c_str());
+        mk(data/L"minecraft-1.8.9"/L"eternal-classpath.txt",(StateStore::utf8(oldVanillaJar)+"\n").c_str());
+        mk(data/L"runtime"/L"bin"/L"java.exe","j");
+        mk(data/L"runtime"/L"authlib-injector"/L"authlib.jar","a");
+        mk(data/L"runtime-8"/L"bin"/L"java.exe","j8");
+        mk(data/L"downloads"/L"forge.jar","f");
+        mk(data/L"skin-cache"/L"0123.png","s");
+        mk(data/L"skins"/L"mine.png","m");
+        mk(data/L"account.dat","sealed");
+        mk(data/L"settings.json","{\"schemaVersion\":1}");
+        std::wstring lowered=oldJar;
+        for(auto& c:lowered) c=static_cast<wchar_t>(towlower(c));
+        mk(data/L"verified-files.txt",("sha1\t1\t2\tabc\t"+StateStore::utf8(lowered)+"\nsha1\t1\t2\tdef\tc:\\elsewhere\\x.jar\n").c_str());
+        mk(data/L"nickname.txt","Steve\n");
+        mk(data/L"performance-profile.txt","leve\n");
+        mk(data/L"last-version.txt","3.2.1\n");
+        mk(data/L"playtime.json",R"({"schemaVersion":1,"totalSeconds":725,"lastSessionSeconds":125,"lastPlayed":1800000125})");
+        mk(data/L"playtime-imported.marker","imported\n");
+        mk(data/L"achievements.txt","Steve\tcoruja\nSTEVE\tpodio\nbroken\n");
+        mk(data/L"milestones.txt","Steve\t4\nbroken line\nLuna\tx\n");
+        mk(data/L"news-state.txt","s\tFesta|2026-11-10\nd\tSem data|\n");
+        mk(data/L"modpack-snapshot.txt","create-1.jar\njei-2.jar\n");
+        mk(data/L"gallery-shared.txt","0123456789abcdef\ttoken-1\tshot.png|42\n");
+
+        const auto report=DataLayout::migrate(data);
+        check(report.changed && report.pending.empty(),"an old folder migrates completely");
+        check(std::filesystem::exists(data/L"games"/L"eternal"/L"saves"/L"world"/L"level.dat") && !std::filesystem::exists(data/L"minecraft"),
+            "the modpack instance moves with its worlds");
+        check(std::filesystem::exists(data/L"games"/L"vanilla-1.8.9") && std::filesystem::exists(data/L"java"/L"17"/L"bin"/L"java.exe") &&
+              std::filesystem::exists(data/L"java"/L"8"/L"bin"/L"java.exe"),"1.8.9 and both Java runtimes move");
+        check(std::filesystem::exists(data/L"cache"/L"authlib-injector"/L"authlib.jar") && !std::filesystem::exists(data/L"java"/L"17"/L"authlib-injector"),
+            "authlib-injector leaves the Java folder for the cache");
+        check(std::filesystem::exists(data/L"cache"/L"downloads"/L"forge.jar") && std::filesystem::exists(data/L"cache"/L"skins"/L"0123.png") &&
+              std::filesystem::exists(data/L"skins"/L"mine.png"),"downloads and skin cache go to cache; the player's skins stay");
+        check(std::filesystem::exists(data/L"account"/L"account.dat") && !std::filesystem::exists(data/L"account.dat"),"the session moves to account");
+        const auto readAll=[](const std::filesystem::path& path) {std::ifstream input(path,std::ios::binary);return std::string(std::istreambuf_iterator<char>(input),{});};
+        check(readAll(data/L"games"/L"eternal"/L"eternal-classpath.txt")==StateStore::utf8((data/L"games"/L"eternal"/L"libraries"/L"a.jar").wstring())+"\n",
+            "the modpack classpath points at the new folder");
+        check(readAll(data/L"games"/L"vanilla-1.8.9"/L"eternal-classpath.txt")==StateStore::utf8((data/L"games"/L"vanilla-1.8.9"/L"libraries"/L"b.jar").wstring())+"\n",
+            "the 1.8.9 classpath (used offline) points at the new folder");
+        std::wstring movedKey=(data/L"games"/L"eternal"/L"libraries"/L"a.jar").wstring();
+        for(auto& c:movedKey) c=static_cast<wchar_t>(towlower(c));
+        const auto verified=readAll(data/L"cache"/L"verified-files.txt");
+        check(verified.find(StateStore::utf8(movedKey))!=std::string::npos && verified.find("c:\\elsewhere\\x.jar")!=std::string::npos &&
+              !std::filesystem::exists(data/L"verified-files.txt"),"verified files follow the move, other paths untouched");
+
+        check(NicknameStore::load(data)==L"Steve","nickname migrates");
+        check(PerformanceProfiles::load(data)==PerformanceProfiles::Profile::Light,"performance profile migrates");
+        const auto version=StateStore::read(data,"lastSeenVersion");
+        check(version && version->stringValue() && *version->stringValue()=="3.2.1","last seen version migrates");
+        const auto time=PlaytimeStore::load(data);
+        check(time.totalSeconds==725 && time.lastSessionSeconds==125 && time.lastPlayed==1800000125,"play time migrates");
+        check(PlaytimeApi::imported(data),"the import marker migrates");
+        AchievementStore achievements;achievements.load(data);
+        check(achievements.earned(L"steve").count("coruja") && achievements.earned(L"Steve").count("podio"),"achievements migrate, accounts merged by case");
+        MilestoneStore levels;levels.load(data);
+        check(levels.celebrated(L"steve")==4 && levels.celebrated(L"Luna")==-1,"milestones migrate without the broken lines");
+        NewsReadState newsState;newsState.load(data);
+        NewsItem festa{L"EVENTO",L"Festa",L"",L"",L"",false,L"2026-11-10"};
+        NewsItem undated{L"AVISO",L"Sem data",L"",L"",L"",false,L""};
+        check(newsState.exists() && newsState.seen(festa) && newsState.dismissed(undated),"news read state migrates");
+        const auto snapshot=ModpackChangelog::load(data);
+        check(snapshot && snapshot->size()==2 && (*snapshot)[1]==L"jei-2.jar","modpack snapshot migrates");
+        GallerySharedStore gallery;gallery.load(data);
+        check(gallery.byId(L"0123456789abcdef") && gallery.byId(L"0123456789abcdef")->token=="token-1","shared pictures migrate");
+
+        std::vector<std::wstring> left;
+        for(const auto& entry:std::filesystem::directory_iterator(data)) left.push_back(entry.path().filename().wstring());
+        std::sort(left.begin(),left.end());
+        check(left==std::vector<std::wstring>{L"account",L"cache",L"games",L"java",L"settings.json",L"skins",L"state.json"},
+            "only the new layout is left at the top of the folder");
+        check(!DataLayout::migrate(data).changed,"running again changes nothing");
+
+        // A game still running keeps its folder busy: it stays, and the launcher keeps using it.
+        const auto busyData=root/L"migration-busy"/L".eternal-launcher";
+        mk(busyData/L"minecraft"/L"logs"/L"latest.log","open");
+        mk(busyData/L"nickname.txt","Steve\n");
+        {
+            const HANDLE open=CreateFileW((busyData/L"minecraft"/L"logs"/L"latest.log").c_str(),GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,OPEN_EXISTING,0,nullptr);
+            const auto busy=DataLayout::migrate(busyData);
+            check(!busy.pending.empty() && std::filesystem::exists(busyData/L"minecraft"),"a folder in use is not moved");
+            check(DataLayout::eternalGame(busyData)==busyData/L"minecraft","the old folder keeps being used until it can move");
+            check(NicknameStore::load(busyData)==L"Steve","the rest migrates anyway");
+            if(open!=INVALID_HANDLE_VALUE) CloseHandle(open);
+        }
+        check(DataLayout::migrate(busyData).pending.empty() && DataLayout::eternalGame(busyData)==busyData/L"games"/L"eternal","the next start finishes the move");
     }
 
     void mods(const std::filesystem::path& root) {
@@ -680,6 +806,8 @@ int main()
     newsReadState(root);
     rankTiers();
     milestones(root);
+    stateStore(root);
+    dataMigration(root);
     modpackChangelog(root);
     screenshots(root);
     gallery(root);

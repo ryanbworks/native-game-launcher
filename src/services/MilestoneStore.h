@@ -4,11 +4,12 @@
 #include <map>
 #include <string>
 
-// The highest play-time level already celebrated for each nickname, kept in
-// milestones.txt in the data folder so a level is only celebrated once.
+// The highest play-time level already celebrated for each nickname, kept under
+// "milestones" in state.json so a level is only celebrated once.
 class MilestoneStore
 {
 public:
+    static constexpr const char* Key = "milestones";
     void load(const std::filesystem::path& directory);
     bool save() const;
     // -1 while this nickname has never been seen.
@@ -16,6 +17,6 @@ public:
     void setCelebrated(const std::wstring& name, int level);
 private:
     static std::wstring key(std::wstring name);
-    std::filesystem::path file_;
+    std::filesystem::path directory_;
     std::map<std::wstring, int> levels_;
 };

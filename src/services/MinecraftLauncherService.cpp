@@ -1,5 +1,6 @@
 #include "services/MinecraftLauncherService.h"
 
+#include "config/DataLayout.h"
 #include "config/LauncherConfig.h"
 #include "services/MinecraftLaunchCommandBuilder.h"
 
@@ -341,19 +342,14 @@ std::filesystem::path MinecraftLauncherService::gameDirectory() const
 
 std::filesystem::path MinecraftLauncherService::resolveDataDirectory() const
 {
-    const auto appData = readEnvironmentVariable(L"APPDATA");
-    if (appData.empty())
-    {
-        return std::filesystem::current_path() / LauncherConfig::DataDirectoryName;
-    }
-    return std::filesystem::path(appData) / LauncherConfig::DataDirectoryName;
+    return LauncherSettingsStore::dataDirectory();
 }
 
 std::filesystem::path MinecraftLauncherService::findJavaExecutable() const
 {
     if (!settings_.javaExecutable.empty())
         return LauncherSettingsStore::isJava17Executable(settings_.javaExecutable) ? settings_.javaExecutable : std::filesystem::path{};
-    const auto bundledJava = resolveDataDirectory() / L"runtime" / L"bin" / L"java.exe";
+    const auto bundledJava = DataLayout::java17(resolveDataDirectory()) / L"bin" / L"java.exe";
     if (std::filesystem::is_regular_file(bundledJava) && isJava17Runtime(bundledJava))
     {
         return bundledJava;

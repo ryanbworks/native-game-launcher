@@ -1,5 +1,6 @@
 #include "services/PlaytimeApi.h"
 
+#include "config/StateStore.h"
 #include "services/HttpDownloadClient.h"
 #include "utils/JsonValue.h"
 
@@ -134,9 +135,15 @@ PlaytimeApiResponse PlaytimeApi::importLocal(std::wstring_view baseUrl, const st
     return toResponse(HttpDownloadClient{}.postJson(endpoint(baseUrl, L"import"), body, stop));
 }
 
-std::filesystem::path PlaytimeApi::importMarkerPath(const std::filesystem::path& dataDirectory)
+bool PlaytimeApi::imported(const std::filesystem::path& dataDirectory)
 {
-    return dataDirectory / L"playtime-imported.marker";
+    const auto value = StateStore::read(dataDirectory, "playtimeImported");
+    return value && value->boolValue(false);
+}
+
+bool PlaytimeApi::markImported(const std::filesystem::path& dataDirectory)
+{
+    return StateStore::write(dataDirectory, "playtimeImported", JsonValue(true));
 }
 
 void PlaytimeApi::runSession(std::wstring_view baseUrl, std::wstring_view nickname, const PlaytimeRecord& local,
@@ -158,13 +165,11 @@ void PlaytimeApi::runSession(std::wstring_view baseUrl, std::wstring_view nickna
             token = started.token;
             interval = started.heartbeatSeconds;
             update(started.totalSeconds, false);
-            std::error_code error;
-            const auto marker = importMarkerPath(dataDirectory);
-            if (started.importAvailable && local.totalSeconds > 0 && !std::filesystem::exists(marker, error)) {
-                const auto imported = importLocal(baseUrl, token, local, stop);
-                if (imported.success) {
-                    std::ofstream(marker, std::ios::binary | std::ios::trunc) << "imported\n";
-                    update(imported.totalSeconds, false);
+            if (started.importAvailable && local.totalSeconds > 0 && !imported(dataDirectory)) {
+                const auto result = importLocal(baseUrl, token, local, stop);
+                if (result.success) {
+                    (void)markImported(dataDirectory);
+                    update(result.totalSeconds, false);
                 }
             }
         } else {

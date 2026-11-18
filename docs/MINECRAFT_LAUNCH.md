@@ -74,7 +74,7 @@ the README to configure the Application ID that mode requires.
 
 The **Versões** page offers an unmodified 1.8.9, for public minigame servers, and
 **Jogar** starts whichever game is selected there.
-It uses `minecraft-1.8.9` and `runtime-8` inside the data folder, so the group's
+It uses `games\vanilla-1.8.9` and `java\8` inside the data folder, so the group's
 instance, Java 17 and mods are never touched, and it does not depend on the file
 server. Java comes from Adoptium and the game from Mojang, both verified by hash.
 The `client-1.7.xml` log configuration is mandatory: it disables the JNDI lookups of

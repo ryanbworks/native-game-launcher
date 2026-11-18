@@ -145,6 +145,10 @@ add_executable(EternalLauncher WIN32
     src/config/LauncherSettings.cpp
     src/config/LauncherSettings.h
     src/config/LauncherConfig.h
+    src/config/DataLayout.cpp
+    src/config/DataLayout.h
+    src/config/StateStore.cpp
+    src/config/StateStore.h
     src/config/NicknameStore.cpp
     src/config/NicknameStore.h
     src/constants/LauncherConstants.h
@@ -236,6 +240,8 @@ if(BUILD_TESTING)
         src/config/LauncherSettings.cpp
         src/config/LauncherSettings.h
         src/config/LauncherConfig.h
+        src/config/DataLayout.cpp
+        src/config/StateStore.cpp
         src/config/NicknameStore.cpp
         src/config/NicknameStore.h
         src/services/ModCleanup.cpp
@@ -255,6 +261,8 @@ if(BUILD_TESTING)
     add_executable(LauncherSettingsTests
         tests/LauncherSettingsTests.cpp
         src/config/LauncherSettings.cpp
+        src/config/DataLayout.cpp
+        src/config/StateStore.cpp
         src/utils/JsonValue.cpp
         src/services/MinecraftLaunchCommandBuilder.cpp
         src/services/MinecraftLauncherService.cpp)
@@ -272,6 +280,8 @@ if(BUILD_TESTING)
         tests/SettingsPageTests.cpp
         src/pages/SettingsPage.cpp
         src/config/LauncherSettings.cpp
+        src/config/DataLayout.cpp
+        src/config/StateStore.cpp
         src/utils/JsonValue.cpp
         src/utils/DrawingUtils.cpp
         src/utils/Icons.cpp
@@ -308,7 +318,7 @@ if(BUILD_TESTING)
         src/services/MinecraftManifestService.cpp src/services/JavaRuntimeService.cpp
         src/services/JavaRuntimePackage.cpp src/services/PortableJavaInstaller.cpp
         src/services/ModCleanup.cpp src/utils/ArchiveExtractor.cpp src/utils/FileHash.cpp
-        src/utils/JsonValue.cpp src/config/LauncherSettings.cpp)
+        src/utils/JsonValue.cpp src/config/LauncherSettings.cpp src/config/DataLayout.cpp src/config/StateStore.cpp)
     target_compile_features(InstallationTrackingTests PRIVATE cxx_std_20)
     target_compile_definitions(InstallationTrackingTests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_include_directories(InstallationTrackingTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -324,7 +334,8 @@ if(BUILD_TESTING)
     add_executable(LauncherServicesTests tests/LauncherServicesTests.cpp
         src/services/PlaytimeStore.cpp src/services/PlaytimeApi.cpp src/services/NewsFeed.cpp src/services/ModInventory.cpp
         src/services/SkinLookup.cpp src/services/ScreenshotLibrary.cpp src/services/MilestoneStore.cpp src/services/ModpackChangelog.cpp src/services/GalleryApi.cpp src/services/Achievements.cpp src/services/PerformanceProfiles.cpp src/services/ServerList.cpp src/services/EternalAccount.cpp src/utils/FileHash.cpp src/components/SkinRenderer.cpp
-        src/services/HttpDownloadClient.cpp src/utils/JsonValue.cpp)
+        src/services/HttpDownloadClient.cpp src/utils/JsonValue.cpp
+        src/config/DataLayout.cpp src/config/StateStore.cpp src/config/NicknameStore.cpp)
     target_compile_features(LauncherServicesTests PRIVATE cxx_std_20)
     target_compile_definitions(LauncherServicesTests PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
     target_include_directories(LauncherServicesTests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")

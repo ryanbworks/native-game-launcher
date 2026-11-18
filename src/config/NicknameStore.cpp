@@ -1,9 +1,8 @@
 #include "config/NicknameStore.h"
 
-#include <windows.h>
+#include "config/StateStore.h"
 
 #include <algorithm>
-#include <fstream>
 #include <string>
 
 bool NicknameStore::isValid(std::wstring_view nickname)
@@ -18,25 +17,13 @@ bool NicknameStore::isValid(std::wstring_view nickname)
         });
 }
 
-std::filesystem::path NicknameStore::filePath(
-    const std::filesystem::path& dataDirectory)
-{
-    return dataDirectory / L"nickname.txt";
-}
-
 std::wstring NicknameStore::load(const std::filesystem::path& dataDirectory)
 {
-    const auto path = filePath(dataDirectory);
-    std::error_code error;
-    const auto size = std::filesystem::file_size(path, error);
-    if (error || size > 32) return {};
-    std::ifstream input(path, std::ios::binary);
-    if (!input) return {};
-    std::string text;
-    std::getline(input, text);
-    if (!text.empty() && text.back() == '\r') text.pop_back();
-    if (text.size() > 16) return {};
-    const std::wstring nickname(text.begin(), text.end());
+    const auto value = StateStore::read(dataDirectory, Key);
+    const auto* text = value ? value->stringValue() : nullptr;
+    if (!text || text->size() > 16) return {};
+    // Valid nicknames are ASCII, so widening byte by byte is exact.
+    const std::wstring nickname(text->begin(), text->end());
     return isValid(nickname) ? nickname : std::wstring{};
 }
 
@@ -45,21 +32,7 @@ bool NicknameStore::save(
     std::wstring_view nickname)
 {
     if (!isValid(nickname)) return false;
-    std::error_code error;
-    std::filesystem::create_directories(dataDirectory, error);
-    if (error) return false;
-
-    // Write to a temporary file first so the last valid value is never lost.
-    const auto destination = filePath(dataDirectory);
-    const auto temporary = std::filesystem::path(destination.wstring() + L".tmp");
-    {
-        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-        if (!output) return false;
-        for (const auto character : nickname) output.put(static_cast<char>(character));
-        output.put('\n');
-        output.flush();
-        if (!output) return false;
-    }
-    return MoveFileExW(temporary.c_str(), destination.c_str(),
-                       MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+    std::string ascii;
+    for (const auto character : nickname) ascii.push_back(static_cast<char>(character));
+    return StateStore::write(dataDirectory, Key, JsonValue(std::move(ascii)));
 }

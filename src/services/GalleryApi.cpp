@@ -1,6 +1,7 @@
 #include "services/GalleryApi.h"
 
 #include "config/LauncherConfig.h"
+#include "config/StateStore.h"
 #include "services/HttpDownloadClient.h"
 #include "services/ScreenshotLibrary.h"
 #include "utils/JsonValue.h"
@@ -405,29 +406,37 @@ bool GalleryApi::reportSkin(std::wstring_view baseUrl, const std::wstring& id, s
 
 // ---------------------------------------------------------------------------------------------
 
-void GallerySharedStore::load(const std::filesystem::path& directory, const wchar_t* fileName)
+void GallerySharedStore::load(const std::filesystem::path& directory, const char* key)
 {
-    file_ = directory / fileName;
+    directory_ = directory;
+    key_ = key;
     entries_.clear();
-    std::ifstream input(file_, std::ios::binary);
-    for (std::string line; std::getline(input, line);) {
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        const auto first = line.find('\t');
-        const auto second = first == std::string::npos ? std::string::npos : line.find('\t', first + 1);
-        if (second == std::string::npos) continue;
-        Entry entry{wide(line.substr(0, first)), line.substr(first + 1, second - first - 1), wide(line.substr(second + 1))};
+    const auto state = StateStore::read(directory, key);
+    const auto* list = state ? state->arrayValue() : nullptr;
+    if (!list) return;
+    const auto text = [](const JsonValue& item, const char* name) {
+        const auto* value = item.find(name);
+        const auto* string = value ? value->stringValue() : nullptr;
+        return string ? *string : std::string{};
+    };
+    for (const auto& item : *list) {
+        Entry entry{wide(text(item, "id")), text(item, "token"), wide(text(item, "source"))};
         if (validId(entry.id) && !entry.token.empty()) entries_.push_back(std::move(entry));
     }
 }
 
 bool GallerySharedStore::save() const
 {
-    if (file_.empty()) return false;
-    std::error_code ignored;
-    std::filesystem::create_directories(file_.parent_path(), ignored);
-    std::ofstream output(file_, std::ios::binary | std::ios::trunc);
-    for (const auto& entry : entries_) output << utf8(entry.id) << '\t' << entry.token << '\t' << utf8(entry.source) << '\n';
-    return static_cast<bool>(output);
+    if (directory_.empty()) return false;
+    JsonValue::Array list;
+    for (const auto& entry : entries_) {
+        JsonValue::Object item;
+        item.insert_or_assign("id", JsonValue(utf8(entry.id)));
+        item.insert_or_assign("token", JsonValue(entry.token));
+        item.insert_or_assign("source", JsonValue(utf8(entry.source)));
+        list.push_back(JsonValue(std::move(item)));
+    }
+    return StateStore::write(directory_, key_, JsonValue(std::move(list)));
 }
 
 void GallerySharedStore::add(Entry entry)

@@ -1,5 +1,6 @@
 #include "services/VanillaMinecraftService.h"
 
+#include "config/DataLayout.h"
 #include "config/LauncherConfig.h"
 #include "config/LauncherSettings.h"
 #include "services/HttpDownloadClient.h"
@@ -125,7 +126,7 @@ namespace
                                                  const std::filesystem::path& clientJar, const std::string& clientSha1,
                                                  std::stop_token stop, const InstallationProgressCallback& progress, std::wstring& problem)
     {
-        const auto installer = data / L"downloads" / std::wstring(LauncherConfig::OptiFineFileName);
+        const auto installer = DataLayout::downloads(data) / std::wstring(LauncherConfig::OptiFineFileName);
         const auto libraries = game / L"libraries" / L"optifine";
         OptiFineFiles files{libraries / L"OptiFine" / L"1.8.9_HD_U_M5" / L"OptiFine-1.8.9_HD_U_M5.jar",
                             libraries / L"launchwrapper-of" / L"2.2" / std::wstring(LauncherConfig::OptiFineLaunchwrapper)};
@@ -162,7 +163,7 @@ namespace
         auto partial = files.library;
         partial += L".part";
         std::filesystem::remove(partial, ignored);
-        const auto java = data / LauncherConfig::Java8RuntimeDirectoryName / L"bin" / L"java.exe";
+        const auto java = DataLayout::java8(data) / L"bin" / L"java.exe";
         const auto quote = [](const std::filesystem::path& path) { return L"\"" + path.wstring() + L"\""; };
         if (!runProcess(quote(java) + L" -cp " + quote(installer) + L" optifine.Patcher " + quote(clientJar) + L" " + quote(installer) + L" " +
                         quote(partial), game, stop) ||
@@ -192,7 +193,7 @@ namespace
     std::optional<Failure> ensureJava8(const std::filesystem::path& data, std::stop_token stop,
                                        const InstallationProgressCallback& progress)
     {
-        const auto runtime = data / LauncherConfig::Java8RuntimeDirectoryName;
+        const auto runtime = DataLayout::java8(data);
         if (std::filesystem::is_regular_file(runtime / L"bin" / L"java.exe")) {
             progress({InstallationStage::Java, InstallationActivity::Checking, InstallationStepState::Available, L"Java 8 já disponível."});
             return std::nullopt;
@@ -204,7 +205,7 @@ namespace
         const auto package = JavaRuntimePackage::parse(metadata.content);
         if (!package) return Failure{InstallationFailure::Configuration, L"A resposta do provedor do Java é inválida."};
 
-        const auto archive = data / L"downloads" / L"temurin-8.zip.part";
+        const auto archive = DataLayout::downloads(data) / L"temurin-8.zip.part";
         const auto download = http.downloadFile(package->url, archive, stop, [&](std::uint64_t received, std::uint64_t total) {
             const auto expected = total > 0 ? total : package->size;
             InstallationProgress value;
@@ -228,7 +229,8 @@ namespace
         }
 
         progress({InstallationStage::Java, InstallationActivity::Extracting, InstallationStepState::Active, L"Extraindo o Java 8..."});
-        const auto staging = data / L"runtime-8-staging";
+        // Next to the runtime folder, so the final rename stays on the same disk.
+        const auto staging = std::filesystem::path(runtime.wstring() + L"-staging");
         std::filesystem::remove_all(staging, ignored);
         std::filesystem::create_directories(staging);
         const bool extracted = ArchiveExtractor::extract(archive, staging, stop);
@@ -256,12 +258,12 @@ namespace
 
 std::filesystem::path VanillaMinecraftService::gameDirectory()
 {
-    return LauncherSettingsStore::dataDirectory() / LauncherConfig::VanillaGameDirectoryName;
+    return DataLayout::vanillaGame(LauncherSettingsStore::dataDirectory());
 }
 
 std::filesystem::path VanillaMinecraftService::javaExecutable()
 {
-    return LauncherSettingsStore::dataDirectory() / LauncherConfig::Java8RuntimeDirectoryName / L"bin" / L"java.exe";
+    return DataLayout::java8(LauncherSettingsStore::dataDirectory()) / L"bin" / L"java.exe";
 }
 
 bool VanillaMinecraftService::isInstalled()

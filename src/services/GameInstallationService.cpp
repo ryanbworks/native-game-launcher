@@ -1,6 +1,7 @@
 #include "services/GameInstallationService.h"
 #include "utils/InstallationProcess.h"
 
+#include "config/DataLayout.h"
 #include "config/LauncherConfig.h"
 #include "services/MinecraftManifestService.h"
 #include "services/ModCleanup.h"
@@ -23,16 +24,6 @@
 
 namespace
 {
-    std::wstring environmentVariable(const wchar_t* name)
-    {
-        wchar_t* value = nullptr;
-        std::size_t length = 0;
-        if (_wdupenv_s(&value, &length, name) != 0 || value == nullptr) return {};
-        std::wstring result(value);
-        std::free(value);
-        return result;
-    }
-
     std::string wideToUtf8(std::wstring_view value)
     {
         if (value.empty()) return {};
@@ -443,7 +434,7 @@ GameInstallationResult GameInstallationService::install(
             nativesReused ? L"Bibliotecas nativas já preparadas." : L"Bibliotecas nativas preparadas.",
             nativesReused ? InstallationStepState::Available : InstallationStepState::Complete);
 
-        const auto forgeInstaller = dataPath / L"downloads" /
+        const auto forgeInstaller = DataLayout::downloads(dataPath) /
                                     L"forge-1.20.1-47.4.10-installer.jar";
         report(InstallationStage::Forge,InstallationActivity::Checking, L"Conferindo o Forge...");
         const std::vector<VerifiedDownload> forgeDownload = {{
@@ -461,7 +452,7 @@ GameInstallationResult GameInstallationService::install(
         {
             writeTextFile(gamePath / L"launcher_profiles.json", "{\"profiles\":{}}");
             report(InstallationStage::Forge,InstallationActivity::Installing, L"Executando instalador Forge 47.4.10...");
-            const auto java = settings_.javaExecutable.empty() ? dataPath / L"runtime" / L"bin" / L"java.exe"
+            const auto java = settings_.javaExecutable.empty() ? DataLayout::java17(dataPath) / L"bin" / L"java.exe"
                 : settings_.javaExecutable.parent_path() / L"java.exe";
             int attempt = 1;
             auto forgeResult = runForgeInstaller(
@@ -558,10 +549,7 @@ GameInstallationResult GameInstallationService::install(
 
 std::filesystem::path GameInstallationService::dataDirectory() const
 {
-    const auto appData = environmentVariable(L"APPDATA");
-    return appData.empty()
-        ? std::filesystem::current_path() / LauncherConfig::DataDirectoryName
-        : std::filesystem::path(appData) / LauncherConfig::DataDirectoryName;
+    return LauncherSettingsStore::dataDirectory();
 }
 
 std::filesystem::path GameInstallationService::gameDirectory() const

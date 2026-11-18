@@ -67,7 +67,9 @@ public:
     [[nodiscard]] static PlaytimeApiResponse importLocal(std::wstring_view baseUrl, const std::string& token,
         const PlaytimeRecord& local, std::stop_token stop);
 
-    [[nodiscard]] static std::filesystem::path importMarkerPath(const std::filesystem::path& dataDirectory);
+    // Whether this installation already sent its local counter ("playtimeImported" in state.json).
+    [[nodiscard]] static bool imported(const std::filesystem::path& dataDirectory);
+    static bool markImported(const std::filesystem::path& dataDirectory);
 
     // Runs on a worker for as long as the game is open: opens the session, performs the
     // import when it is still due, sends heartbeats and closes the session when stopped.

@@ -23,9 +23,10 @@ struct ModpackChanges
 };
 
 // What changed in the server's mod list since the player last saw it. The list the
-// player acknowledged is kept in modpack-snapshot.txt in the data folder.
+// player acknowledged is kept under "modpackSnapshot" in state.json.
 namespace ModpackChangelog
 {
+    inline constexpr const char* Key = "modpackSnapshot";
     // "create-1.20.1-0.5.1.f.jar" -> "create": the file name without its version, so
     // a new version of the same mod is an update and not a removal plus an addition.
     std::wstring modKey(std::wstring_view fileName);

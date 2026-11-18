@@ -1,5 +1,7 @@
 #include "services/PerformanceProfiles.h"
 
+#include "config/StateStore.h"
+
 #include <windows.h>
 
 #include <algorithm>
@@ -134,14 +136,12 @@ bool PerformanceProfiles::applyVideoOptions(const std::filesystem::path& gameDir
 
 std::optional<PerformanceProfiles::Profile> PerformanceProfiles::load(const std::filesystem::path& dataDirectory)
 {
-    std::ifstream input(dataDirectory / L"performance-profile.txt", std::ios::binary);
-    std::string text;
-    std::getline(input, text);
-    while (!text.empty() && (text.back() == '\r' || text.back() == ' ')) text.pop_back();
-    return fromId(text);
+    const auto value = StateStore::read(dataDirectory, Key);
+    const auto* text = value ? value->stringValue() : nullptr;
+    return text ? fromId(*text) : std::nullopt;
 }
 
 bool PerformanceProfiles::save(const std::filesystem::path& dataDirectory, Profile profile)
 {
-    return writeAtomically(dataDirectory / L"performance-profile.txt", id(profile) + "\n");
+    return StateStore::write(dataDirectory, Key, JsonValue(id(profile)));
 }
