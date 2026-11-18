@@ -6,6 +6,21 @@ and versions use [SemVer](https://semver.org/) plus a codename.
 
 ## [Unreleased]
 
+## [3.2.2] — Zenith · 2026-11-17
+
+### Changed
+- **A tidy data folder.** `%APPDATA%\.eternal-launcher` now holds `settings.json`,
+  `state.json`, `account\`, `games\`, `java\`, `skins\` and `cache\` instead of a dozen loose
+  files. The small text files (nickname, play time, news read, achievements, milestones,
+  modpack snapshot, shared pictures and skins, performance profile) became keys of one
+  `state.json`, written atomically under a lock shared by every launcher process. An old
+  folder is moved on the first start, worlds and session included; a folder in use is
+  moved on a later start and keeps working meanwhile.
+
+### Fixed
+- Reinstalling the portable Java 17 no longer deletes the downloaded authlib-injector,
+  which used to live inside its folder.
+
 ## [3.2.1] — Zenith · 2026-11-14
 
 ### Fixed
