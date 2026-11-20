@@ -6,6 +6,8 @@ and versions use [SemVer](https://semver.org/) plus a codename.
 
 ## [Unreleased]
 
+## [3.2.3] — Zenith · 2026-11-19
+
 ### Fixed
 - **The game opens again with the server off.** Since the Conta Eternal, Jogar stopped at
   "Conta Eternal indisponível" whenever the account server did not answer, so neither the

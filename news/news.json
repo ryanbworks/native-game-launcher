@@ -3,6 +3,13 @@
   "items": [
     {
       "category": "CORREÇÃO",
+      "title": "Eternal 3.2.3: dá para jogar com o servidor desligado",
+      "date": "2026-11-19",
+      "body": "Com o servidor do grupo fora do ar, o Jogar parava em \"Conta Eternal indisponível\" e nem a 1.8.9 abria. Agora o launcher entra com o nome da sua conta e você joga com os arquivos que já tem, com os mesmos mundos.",
+      "url": "https://github.com/ryanbworks/native-game-launcher/releases/tag/v3.2.3"
+    },
+    {
+      "category": "CORREÇÃO",
       "title": "Eternal 3.2.1: a 1.8.9 voltou a abrir",
       "date": "2026-11-14",
       "body": "Com a Conta Eternal, a 1.8.9 com OptiFine fechava logo depois do Jogar e voltava para o launcher. Agora ela abre normalmente.",
