@@ -6,6 +6,13 @@ and versions use [SemVer](https://semver.org/) plus a codename.
 
 ## [Unreleased]
 
+## [3.2.4] — Zenith · 2026-11-19
+
+### Fixed
+- When the server came back while the launcher retried it for a first modpack install, the
+  game opened with the nickname instead of the Conta Eternal and the group's server refused
+  the player. The account is now checked again before playing.
+
 ## [3.2.3] — Zenith · 2026-11-19
 
 ### Fixed
