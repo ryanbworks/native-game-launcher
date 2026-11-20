@@ -434,6 +434,8 @@ private:
     std::wstring loginError_;
     std::wstring loginNotice_;
     bool eternalPreparing_ = false;
+    // The account server did not answer: this session plays with the nickname, without the account.
+    bool accountOffline_ = false;
 
     // Skins page: index 0 is the account's current skin, then the library files.
     struct SkinEntry { std::wstring name; std::filesystem::path path; std::string png; SkinTexture texture; bool slim = false; };

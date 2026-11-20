@@ -735,6 +735,17 @@ LRESULT MainPage::handleMessage(UINT message, WPARAM wParam, LPARAM lParam)
         if (eternalThread_.joinable()) eternalThread_.join();
         eternalPreparing_ = false;
         if (!ready) return 0;
+        if (!ready->auth.success && ready->auth.unreachable) {
+            // The account server is down (it shares the machine with the group's server): play
+            // with the account's name as a nickname, as before accounts, so the 1.8.9 and the
+            // modpack with the local files still open.
+            accountOffline_ = true;
+            viewState_.playEnabled = true;
+            pendingNickname_ = eternalSession_.name;
+            pendingIdentity_ = MinecraftIdentity{eternalSession_.name};
+            startGame();
+            return 0;
+        }
         if (!ready->auth.success) {
             viewState_.playEnabled = true;
             viewState_.primaryActionLabel = L"JOGAR";
@@ -3713,6 +3724,7 @@ void MainPage::handlePrimaryAction()
 {
     if (!viewState_.playEnabled) return;
     playingVanilla_ = vanillaSelected_;
+    accountOffline_ = false;
     std::wstring settingsError;
     if (!LauncherSettingsStore::validate(settings_, settingsError)) {
         showPage(LauncherPage::Settings);
@@ -5043,7 +5055,9 @@ void MainPage::launchPreparedMinecraft(const InstallationResult& result, bool of
     installation_.visible = false;
     viewState_.operation = LauncherOperation::MinecraftRunning;
     viewState_.headline = L"Jogando agora";
-    viewState_.operationMessage = offline
+    viewState_.operationMessage = accountOffline_
+        ? L"Servidor de contas fora do ar: jogando como " + pendingNickname_ + L", sem a Conta Eternal. A skin e o servidor do grupo voltam quando ele ligar."
+        : offline
         ? L"Jogando com os arquivos locais, sem sincronizar com o servidor. O tempo de jogo continua sendo contado."
         : L"Forge " + std::wstring(LauncherConfig::ForgeVersion) + L" iniciado para " + pendingNickname_ +
           L". O tempo de jogo é contado mesmo com a janela fechada.";

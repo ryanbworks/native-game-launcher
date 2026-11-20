@@ -24,6 +24,7 @@ struct EternalAuthResult
     EternalSession session;
     std::wstring errorMessage;
     bool rejected = false;  // the server answered no (wrong password, expired token)
+    bool unreachable = false;  // no answer, or the proxy answered 5xx: the server is down
 };
 
 // The player's current skin as the account server publishes it.

@@ -425,6 +425,10 @@ namespace {
         check(!EternalSessionStore::load(directory),"signing out removes the session");
         check(EternalAccount::newClientToken().size()==32 && EternalAccount::newClientToken()!=EternalAccount::newClientToken(),"client tokens are random");
 
+        // A server that is off is unreachable, not a rejection: the launcher plays without the account.
+        const auto down=EternalAccount::ensureValid(L"http://127.0.0.1:9",session);
+        check(!down.success && down.unreachable && !down.rejected,"an account server that is off counts as unreachable");
+
         // Against a real Drasl, when one is given: ETERNAL_ACCOUNTS_TEST_URL, _USER, _PASSWORD.
         std::array<wchar_t,256> accounts{},user{},password{};
         if(!GetEnvironmentVariableW(L"ETERNAL_ACCOUNTS_TEST_URL",accounts.data(),256) || !GetEnvironmentVariableW(L"ETERNAL_ACCOUNTS_TEST_USER",user.data(),256) ||
@@ -478,7 +482,7 @@ namespace {
         Gdiplus::GdiplusShutdown(token);
         EternalAccount::signOut(accounts.data(),signedIn.session);
         const auto revoked=EternalAccount::ensureValid(accounts.data(),signedIn.session);
-        check(!revoked.success && revoked.rejected,"signing out revokes the token on the server");
+        check(!revoked.success && revoked.rejected && !revoked.unreachable,"signing out revokes the token on the server");
         std::cout << "conta eternal integration: ran against ETERNAL_ACCOUNTS_TEST_URL\n";
     }
 

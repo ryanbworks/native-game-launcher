@@ -186,13 +186,18 @@ EternalAuthResult EternalAccount::ensureValid(std::wstring_view baseUrl, const E
     const auto validation = client.send(L"POST", base + L"/authlib-injector/authserver/validate", {}, &tokens, L"application/json", stop);
     EternalAuthResult result;
     if (validation.success) { result.success = true; result.session = session; return result; }
-    if (validation.statusCode == 0) { result.errorMessage = authError(validation); return result; }
+    if (validation.statusCode == 0 || validation.statusCode >= 500) {
+        result.unreachable = true;
+        result.errorMessage = authError(validation);
+        return result;
+    }
     // Expired: one refresh keeps the player signed in without the password.
     const std::string refresh = "{\"accessToken\":" + json(session.accessToken) + ",\"clientToken\":" + json(session.clientToken) +
         ",\"requestUser\":true}";
     const auto refreshed = client.send(L"POST", base + L"/authlib-injector/authserver/refresh", {}, &refresh, L"application/json", stop);
     if (!refreshed.success) {
         result.rejected = refreshed.statusCode == 403 || refreshed.statusCode == 401;
+        result.unreachable = refreshed.statusCode == 0 || refreshed.statusCode >= 500;
         result.errorMessage = result.rejected ? L"Sua sessão expirou. Entre de novo." : authError(refreshed);
         return result;
     }

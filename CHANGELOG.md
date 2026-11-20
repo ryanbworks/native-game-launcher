@@ -6,6 +6,14 @@ and versions use [SemVer](https://semver.org/) plus a codename.
 
 ## [Unreleased]
 
+### Fixed
+- **The game opens again with the server off.** Since the Conta Eternal, Jogar stopped at
+  "Conta Eternal indisponível" whenever the account server did not answer, so neither the
+  modpack nor the 1.8.9 opened. Now an unreachable account server lets the player in with
+  the account's name as a nickname (same UUID, so worlds carry over), and the modpack falls
+  back to "JOGAR ASSIM MESMO" with the local files as before. An expired or revoked session
+  still asks for the password.
+
 ## [3.2.2] — Zenith · 2026-11-17
 
 ### Changed
