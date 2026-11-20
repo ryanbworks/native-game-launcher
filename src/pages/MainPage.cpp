@@ -4868,6 +4868,13 @@ void MainPage::applyFileServerResult(const FileServerManifestResponse& response)
         }
         if (refreshBeforePlay_) {
             refreshBeforePlay_ = false;
+            if (accountOffline_ && !originalMode_ && eternalSignedIn()) {
+                // The identity was the nickname because the server was down; now that it is
+                // back, play with the Conta Eternal so the group's server accepts the player.
+                accountOffline_ = false;
+                prepareEternalPlay();
+                return;
+            }
             // Only clicking Play starts downloads and Minecraft preparation.
             beginPlay();
             return;
